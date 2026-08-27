@@ -77,8 +77,34 @@ C-->>S: Responder ACK FIN
 Note over S,C: Cierre de sockets y archivo .txt guardado.
 ```
 
+## Diagrama de Arquitectura
+```mermaid
+flowchart TD
+    Args["Args / Terminal<br/>• Dirección IP<br/>• Puerto Destino"]
 
+    subgraph U1["Modo Usuario"]
+        Server["server_user.c<br/>• Recopila datos del sensor<br/>• Crea .txt con todos los datos<br/>• Llama a la syscall personalizada (envío, UDP confiable)<br/>• Notifica éxito/fallo al usuario"]
+    end
 
+    subgraph K["Modo Kernel"]
+        Syscall["syscall_send_protocol.c<br/>• Recibe parámetros desde server_user.c (IP, puerto, datos .txt)<br/>• Usa sockets UDP para un protocolo confiable de envío<br/>• Retorna éxito/fallo del envío (boolean)"]
+    end
+
+    subgraph U2["Modo Usuario"]
+        Client["client_user.c<br/>• Recibe datos vía sockets UDP (confiable)<br/>• Recopila todo en un .txt<br/>• Notifica éxito/fallo al usuario"]
+    end
+
+    Note["Implementar primero en modo usuario,<br/>luego adaptar a modo kernel"]:::nota
+
+    Args --> Server
+    Server -->|"IP, puerto, datos del sensor (.txt)"| Syscall
+    Syscall -.->|"boolean (éxito/fallo)"| Server
+    Syscall ==>|"envío UDP confiable"| Client
+    Note -.- Syscall
+
+    classDef nota fill:#fff3cd,stroke:#e0a800,color:#664d03;
+
+```
 ## Cómo ejecutar
 
 _Pendiente: instrucciones de build y ejecución._
