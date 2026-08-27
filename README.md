@@ -54,17 +54,21 @@ documentación, diseño e implementación de cada etapa.
 
 #### syscall_send_protocol.c
 
-- [ ] Crear socket UDP y lectura del archivo .txt en bloques (fread).
-- [ ] Construir tramas inyectando la Header de 2 bytes y enviar con sendto().
-- [ ] Configurar el temporizador de retransmisión (SO_RCVTIMEO) para manejar el timeout.
-- [ ] Recibir ACK con recvfrom(), validar el bit alternante (1 - N) y enviar trama FIN al terminar.
+- [ ] Crear socket UDP y lectura del archivo `.txt` en bloques (`fread`).
+- [ ] Construir tramas inyectando la Header de 2 bytes y enviar con `sendto()`.
+- [ ] Configurar el temporizador de retransmisión (`SO_RCVTIMEO`) para manejar el timeout.
+- [ ] Recibir ACK con `recvfrom()`, validar el bit alternante (1 - N) y enviar trama FIN al terminar.
 
 #### client_user.c
 
-- [ ] Crear socket UDP y enlazar el puerto destino con bind().
-- [ ] Bucle de recepción con recvfrom(), extracción de Header y filtrado de tramas duplicadas.
+- [ ] Crear socket UDP y enlazar el puerto destino con `bind()`.
+- [ ] Bucle de recepción con `recvfrom()`, extracción de Header y filtrado de tramas duplicadas.
 - [ ] Generar y responder el ACK con el bit conmutado (1 - N).
-- [ ] Escribir los datos recibidos en el archivo .txt local, procesar trama FIN y notificar al usuario.
+- [ ] Escribir los datos recibidos en el archivo `.txt` local, procesar trama FIN y notificar al usuario.
+
+#### Tareas en Conjunto  
+
+- [ ] Crear `include/protocol.h` con la `struct Header` de N bytes y armar el `Makefile` del proyecto.
 
 ## Diagrama de Secuencia del Protocolo
 
