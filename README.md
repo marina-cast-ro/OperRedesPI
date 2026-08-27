@@ -38,11 +38,33 @@ documentación, diseño e implementación de cada etapa.
 
 ## División del trabajo Etapa 1
 
-| Proceso       	 			| Estudiante asignado  |
-| ----------------------------- | ------ |
-| server_user.c    				| Daniel Rodríguez |
-| syscall_send_protocol.c   	| José Serrano, Marina Castro y Hermes Rojas |
-| client_user.c 				| Sebastián Sánchez |
+| Proceso                 | Estudiante asignado                        |
+| ----------------------- | ------------------------------------------ |
+| server_user.c           | Daniel Rodríguez                           |
+| syscall_send_protocol.c | José Serrano, Marina Castro y Hermes Rojas |
+| client_user.c           | Sebastián Sánchez                          |
+
+### Tareas de cada estudiante
+
+#### server_user.c
+
+- [] Capturar datos del sensor en la Raspberry Pi y generar el archivo `.txt` local.
+- [] Implementar la interfaz/llamada hacia `syscall_send_protocol` pasando IP, puerto y ruta del `.txt`.
+- [] Notificar éxito o fallo del envío al usuario.
+
+#### syscall_send_protocol.c
+
+- [] Crear socket UDP y lectura del archivo .txt en bloques (fread).
+- [] Construir tramas inyectando la Header de 2 bytes y enviar con sendto().
+- [] Configurar el temporizador de retransmisión (SO_RCVTIMEO) para manejar el timeout.
+- [] Recibir ACK con recvfrom(), validar el bit alternante (1 - N) y enviar trama FIN al terminar.
+
+#### client_user.c
+
+- [ ] Crear socket UDP y enlazar el puerto destino con bind().
+- [ ] Bucle de recepción con recvfrom(), extracción de Header y filtrado de tramas duplicadas.
+- [ ] Generar y responder el ACK con el bit conmutado (1 - N).
+- [ ] Escribir los datos recibidos en el archivo .txt local, procesar trama FIN y notificar al usuario.
 
 ## Diagrama de Secuencia del Protocolo
 
