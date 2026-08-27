@@ -36,6 +36,14 @@ documentación, diseño e implementación de cada etapa.
 | ----- | -------------------------------------- | ----------- |
 | 1     | Propuesta de protocolo de comunicación | En progreso |
 
+## División del trabajo Etapa 1
+
+| Proceso       	 			| Estudiante asignado  |
+| ----------------------------- | ------ |
+| server_user.c    				| Daniel Rodríguez |
+| syscall_send_protocol.c   	| José Serrano, Marina Castro y Hermes Rojas |
+| client_user.c 				| Sebastián Sánchez |
+
 ## Diagrama de Secuencia del Protocolo
 
 ```mermaid
