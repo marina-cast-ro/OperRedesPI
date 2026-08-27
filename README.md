@@ -48,16 +48,16 @@ documentación, diseño e implementación de cada etapa.
 
 #### server_user.c
 
-- [] Capturar datos del sensor en la Raspberry Pi y generar el archivo `.txt` local.
-- [] Implementar la interfaz/llamada hacia `syscall_send_protocol` pasando IP, puerto y ruta del `.txt`.
-- [] Notificar éxito o fallo del envío al usuario.
+- [ ] Capturar datos del sensor en la Raspberry Pi y generar el archivo `.txt` local.
+- [ ] Implementar la interfaz/llamada hacia `syscall_send_protocol` pasando IP, puerto y ruta del `.txt`.
+- [ ] Notificar éxito o fallo del envío al usuario.
 
 #### syscall_send_protocol.c
 
-- [] Crear socket UDP y lectura del archivo .txt en bloques (fread).
-- [] Construir tramas inyectando la Header de 2 bytes y enviar con sendto().
-- [] Configurar el temporizador de retransmisión (SO_RCVTIMEO) para manejar el timeout.
-- [] Recibir ACK con recvfrom(), validar el bit alternante (1 - N) y enviar trama FIN al terminar.
+- [ ] Crear socket UDP y lectura del archivo .txt en bloques (fread).
+- [ ] Construir tramas inyectando la Header de 2 bytes y enviar con sendto().
+- [ ] Configurar el temporizador de retransmisión (SO_RCVTIMEO) para manejar el timeout.
+- [ ] Recibir ACK con recvfrom(), validar el bit alternante (1 - N) y enviar trama FIN al terminar.
 
 #### client_user.c
 
@@ -69,7 +69,6 @@ documentación, diseño e implementación de cada etapa.
 ## Diagrama de Secuencia del Protocolo
 
 ```mermaid
-%%{init: {'theme': 'dark'}}%%
 sequenceDiagram
 autonumber
 participant S as Servidor - Emisor
