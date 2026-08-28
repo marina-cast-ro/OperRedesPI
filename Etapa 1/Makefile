@@ -67,4 +67,4 @@ $(BUILDDIR):
 
 # --- LIMPIEZA DE ARCHIVOS GENERADOS ---
 clean:
-	rm -rf $(BUILDDIR) *.txt
+	rm -rf $(BUILDDIR) 

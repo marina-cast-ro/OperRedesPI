@@ -24,4 +24,12 @@ typedef struct {
 } Header;
 #pragma pack(pop)
 
+// --- Estructura de Frame (516 bytes) ---
+#pragma pack(push, 1)
+typedef struct {
+    Header header;
+	uint8_t payload[MAX_PAYLOAD_SIZE];
+} Frame;
+#pragma pack(pop)
+
 #endif // PROTOCOL_H
