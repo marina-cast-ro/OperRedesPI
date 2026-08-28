@@ -5,5 +5,7 @@
 
 
 size_t buildFrame (const Header *header, const uint8_t *payloadBuffer, uint8_t *outFrameBuffer);
+size_t sendFrameSockets (const uint8_t *frameBuffer, size_t frameSize);
+
 
 #endif

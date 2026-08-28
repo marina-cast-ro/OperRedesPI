@@ -16,3 +16,15 @@ size_t buildFrame (const Header *header, const uint8_t *payloadBuffer, uint8_t *
 
 	return sizeof(Header) + header->payloadLength;
 }
+
+// --- ENVIAR TRAMAS ---
+// Retorna: 0 si se envió correctamente, -1 si ocurrió un error en el socket/syscall.
+size_t sendFrameSockets(const uint8_t *frameBuffer, size_t frameSize) {
+    if (!frameBuffer || frameSize == 0) {
+        return -1; // Error de parámetros
+    }
+
+    // ṔENDIENTE: Aqui va el envío de la trama usando Sockets
+
+    return 0; // Éxito
+}

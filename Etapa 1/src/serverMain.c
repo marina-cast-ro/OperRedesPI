@@ -1,5 +1,7 @@
 
-#include "serverSendProtocol.h"
+#include "protocol.h"
+#include "serverFileReader.h"
+#include "serverFrameBuilder.h"
 
 // --- MAIN DE PRUEBAS ---
 int main (void) {	
@@ -31,6 +33,9 @@ int main (void) {
 
 		size_t frameSize = buildFrame(&header, buffer, frameBuffer);
 		printf("Frame size: %zu | Seq bit: %u\n\n", frameSize, header.seqNumber);
+
+		sendFrameSockets(frameBuffer, frameSize);	// PENDIENTE: IMPLEMENTAR ESTA FUNCION
+		printf("Sending the frame...");
 
 		// Simular que el ACK llegó con éxito: alternar el bit para el siguiente bloque
         currentSeq = 1 - currentSeq;
