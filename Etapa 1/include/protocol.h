@@ -19,8 +19,8 @@ typedef enum {
 #pragma pack(push, 1)
 typedef struct {
     uint8_t type;           // DATOS (0), ACK (1), END (2)
-    uint8_t seq_number;     // Bit alternado (0 o 1)
-    uint16_t payload_length;// Bytes útiles en la trama
+    uint8_t seqNumber;     // Bit alternado (0 o 1)
+    uint16_t payloadLength;// Bytes útiles en la trama
 } Header;
 #pragma pack(pop)
 
