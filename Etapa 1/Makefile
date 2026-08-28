@@ -7,7 +7,7 @@ BUILDDIR := build
 # --- DEFINICIÓN DE TARGETS ---
 TARGET_SERVER := $(BUILDDIR)/server
 TARGET_CLIENT := $(BUILDDIR)/client
-SERVER_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/server*.c)) $(BUILDDIR)/syscall_send_protocol.o $(BUILDDIR)/user_send_protocol.o
+SERVER_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/server*.c)) 
 CLIENT_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/client*.c))
 
 # --- DEFINICIÓN DE ARCHIVOS FUENTE Y OBJETO ---

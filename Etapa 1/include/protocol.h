@@ -2,6 +2,9 @@
 #define PROTOCOL_H
 
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
 
 // --- Tamaños y Configuración de Red ---
 #define DEFAULT_PORT 8080
