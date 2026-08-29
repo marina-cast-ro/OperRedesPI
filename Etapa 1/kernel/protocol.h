@@ -1,15 +1,20 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <arpa/inet.h>
+#ifdef __KERNEL__
+    /* --- Headers para Kernel Space --- */
+    #include <linux/types.h>
+#else
+    /* --- Headers para User Space --- */
+    #include <stdint.h>
+    #include <stdio.h>
+    #include <string.h>
+    #include <arpa/inet.h>
+#endif
 
 // --- Tamaños y Configuración de Red ---
 #define DEFAULT_PORT 8080
 #define MAX_PAYLOAD_SIZE 512
-#define MAX_BUFFER_SIZE (sizeof(Header) + MAX_PAYLOAD_SIZE)
 
 // --- Tipos de Trama ---
 typedef enum {
@@ -22,8 +27,8 @@ typedef enum {
 #pragma pack(push, 1)
 typedef struct {
     uint8_t type;           // DATOS (0), ACK (1), END (2)
-    uint8_t seqNumber;     // Bit alternado (0 o 1)
-    uint16_t payloadLength;// Bytes útiles en la trama
+    uint8_t seqNumber;      // Bit alternado (0 o 1)
+    uint16_t payloadLength; // Bytes útiles en la trama
 } Header;
 #pragma pack(pop)
 
@@ -31,8 +36,10 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct {
     Header header;
-	uint8_t payload[MAX_PAYLOAD_SIZE];
+    uint8_t payload[MAX_PAYLOAD_SIZE];
 } Frame;
 #pragma pack(pop)
+
+#define MAX_BUFFER_SIZE (sizeof(Header) + MAX_PAYLOAD_SIZE)
 
 #endif // PROTOCOL_H
