@@ -1,12 +1,9 @@
-#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
 #include <linux/protocol.h>
 #include <linux/stopAndWait.h>
-
-MODULE_LICENSE("GPL");
 
 // Definición de Syscall para el Kernel Base
 SYSCALL_DEFINE4(sendFrame, 
@@ -50,15 +47,3 @@ SYSCALL_DEFINE4(sendFrame,
 
     return 0;
 }
-
-static int __init syscallModuleInit(void) {
-    pr_info("[syscallModule] Syscall module up\n");
-    return 0;
-}
-
-static void __exit syscallModuleExit(void) {
-    pr_info("[syscallModule] Module down\n");
-}
-
-module_init(syscallModuleInit);
-module_exit(syscallModuleExit);

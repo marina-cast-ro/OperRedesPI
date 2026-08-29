@@ -4,6 +4,8 @@
 #ifdef __KERNEL__
     /* --- Headers para Kernel Space --- */
     #include <linux/types.h>
+	#include <linux/net.h>
+	#include <linux/in.h>
 #else
     /* --- Headers para User Space --- */
     #include <stdint.h>
@@ -37,8 +39,11 @@ typedef struct {
     uint8_t seqNumber;      // Bit alternado (0 o 1)
     uint16_t payloadLength; // Bytes útiles en la trama
 } Header;
+#pragma pack(pop)
 
 // --- Estructura de Frame (516 bytes) ---
+#pragma pack(push, 1)
+
 typedef struct {
     Header header;
     uint8_t payload[MAX_PAYLOAD_SIZE];

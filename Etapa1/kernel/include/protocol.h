@@ -6,17 +6,20 @@
     #include <linux/types.h>
 	#include <linux/net.h>
 	#include <linux/in.h>
-
-	// Compatibilidad de tipos stdint en el Kernel
-    typedef u8  uint8_t;
-    typedef u16 uint16_t;
 #else
     /* --- Headers para User Space --- */
     #include <stdint.h>
     #include <stdio.h>
     #include <string.h>
+    #include <unistd.h>
+	#include <stddef.h>
+    #include <sys/syscall.h>
     #include <arpa/inet.h>
 #endif
+
+// TODO: Definir el número final asignado a la syscall y la IP destino del receptor
+//#define SYS_UDP_RELIABLE 450 
+//#define DEST_IP "192.168.1.50"
 
 // --- Tamaños y Configuración de Red ---
 #define DEFAULT_PORT 8080
