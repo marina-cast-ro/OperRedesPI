@@ -8,11 +8,11 @@
 
 MODULE_LICENSE("GPL");
 
-SYSCALL_DEFINE4(send_frame, 
-                const char __user *, ip_dest, 
-                int, port, 
-                const void __user *, user_buffer, 
-                size_t, length) 
+// Reemplazar SYSCALL_DEFINE4 por asmlinkage long para módulos cargables (LKM)
+asmlinkage long sys_send_frame(const char __user *ip_dest, 
+                               int port, 
+                               const void __user *user_buffer, 
+                               size_t length) 
 {
     char kernel_ip[16];
     u8 kernel_buffer[MAX_BUFFER_SIZE];
@@ -42,6 +42,8 @@ SYSCALL_DEFINE4(send_frame,
 
     return 0;
 }
+
+EXPORT_SYMBOL_GPL(sys_send_frame);
 
 static int __init syscallModuleInit(void) {
     pr_info("[syscallModule] Syscall module up\n");
