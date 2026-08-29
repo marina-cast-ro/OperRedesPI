@@ -4,6 +4,12 @@
 #ifdef __KERNEL__
     /* --- Headers para Kernel Space --- */
     #include <linux/types.h>
+	#include <linux/net.h>
+	#include <linux/in.h>
+
+	// Compatibilidad de tipos stdint en el Kernel
+    typedef u8  uint8_t;
+    typedef u16 uint16_t;
 #else
     /* --- Headers para User Space --- */
     #include <stdint.h>
@@ -18,9 +24,9 @@
 
 // --- Tipos de Trama ---
 typedef enum {
-    FRAME_DATA = 0,
-    FRAME_ACK  = 1,
-    FRAME_END  = 2
+    PROTOCOL_FRAME_DATA = 0,
+    PROTOCOL_FRAME_ACK  = 1,
+    PROTOCOL_FRAME_END  = 2
 } FrameType;
 
 // --- Encabezado del Protocolo (4 bytes) ---

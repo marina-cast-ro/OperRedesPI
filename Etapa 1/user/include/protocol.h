@@ -25,9 +25,9 @@
 
 // --- Tipos de Trama ---
 typedef enum {
-    FRAME_DATA = 0,
-    FRAME_ACK  = 1,
-    FRAME_END  = 2
+    PROTOCOL_FRAME_DATA = 0,
+    PROTOCOL_FRAME_ACK  = 1,
+    PROTOCOL_FRAME_END  = 2
 } FrameType;
 
 // --- Encabezado del Protocolo (4 bytes) ---
