@@ -29,7 +29,7 @@ size_t buildFrame (uint8_t frameType, const uint8_t *payloadBuffer, uint16_t pay
 
 // --- CONSTRUIR TRAMA DE FIN (Trama tipo END) ---
 size_t buildEndFrame(uint8_t *outFrameBuffer, size_t maxOutBufferSize) {
-    return buildFrame(FRAME_END, NULL, 0, outFrameBuffer, maxOutBufferSize);
+    return buildFrame(PROTOCOL_FRAME_END, NULL, 0, outFrameBuffer, maxOutBufferSize);
 }
 
 // --- ENVIAR TRAMAS ---

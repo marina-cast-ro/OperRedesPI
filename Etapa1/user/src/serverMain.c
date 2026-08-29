@@ -26,7 +26,7 @@ int main (void) {
 		uint8_t frameBuffer[sizeof(Header) + MAX_PAYLOAD_SIZE];
 
 		// Se construye la trama
-		size_t frameSize = buildFrame(FRAME_DATA, payloadBuffer, payloadSize, frameBuffer, sizeof(frameBuffer));
+		size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, payloadBuffer, payloadSize, frameBuffer, sizeof(frameBuffer));
 		printf("Frame size with header: %zu\n", frameSize);
 
 		printf("Sending frame to kernel space via syscall...\n");
