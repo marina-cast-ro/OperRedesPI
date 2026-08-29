@@ -1,5 +1,5 @@
 obj-m += kernelModule.o
-kernel_module-objs := syscallModule.o stopAndWait.o
+kernelModule-objs := syscallModule.o stopAndWait.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 
