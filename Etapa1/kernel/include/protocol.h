@@ -3,9 +3,13 @@
 
 #ifdef __KERNEL__
     /* --- Headers para Kernel Space --- */
+    #include <net/sock.h>
+    #include <linux/socket.h>
     #include <linux/types.h>
+    #include <linux/inet.h>
 	#include <linux/net.h>
 	#include <linux/in.h>
+    #include <linux/errno.h>
 #else
     /* --- Headers para User Space --- */
     #include <stdint.h>
