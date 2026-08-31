@@ -34,7 +34,7 @@ size_t buildEndFrame(uint8_t *outFrameBuffer, size_t maxOutBufferSize) {
 
 // --- ENVIAR TRAMAS ---
 // Retorna: 0 si se envió correctamente, -1 si ocurrió un error en el socket/syscall.
-int sendFrameSockets(const uint8_t *frameBuffer, size_t frameSize) {
+int sendFrameSockets(const char *ip, int port, const uint8_t *frameBuffer, size_t frameSize) {
     if (!frameBuffer || frameSize == 0) {
         return -1; // Error de parámetros
     }
