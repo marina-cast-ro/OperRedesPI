@@ -42,7 +42,7 @@ int sendFrameSockets(const char *ip, int port, const uint8_t *frameBuffer, size_
     /* -------------------------------------------------------------------
      * PARA INTEGRACIÓN (Descomentar cuando el módulo del Kernel esté listo)
      * -------------------------------------------------------------------
-     * long result = syscall(SYS_UDP_RELIABLE, DEST_IP, DEFAULT_PORT, frameBuffer, frameSize);
+     * long result = syscall(SYS_UDP_RELIABLE, ip, port, frameBuffer, frameSize);
      * return (result == 0) ? 0 : -1;
      * ------------------------------------------------------------------- */
 
