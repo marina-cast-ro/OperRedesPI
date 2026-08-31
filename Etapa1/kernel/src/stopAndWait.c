@@ -1,8 +1,9 @@
 #include "../include/stopAndWait.h"
 #include "../include/kernelSocket.h"
 
-// Configuración del temporizador
-#define ACK_TIMEOUT_MS 200   // Espera del ACK antes de darlo por perdido
+// Configuración del temporizador de retransmisión
+#define ACK_TIMEOUT_MS 200   // Espera del ACK antes de reenviar la trama
+#define MAX_RETRIES    5     // Intentos por trama antes de darse por vencido
 
 // Bit de secuencia del emisor. Alterna entre 0 y 1 con cada trama confirmada
 // Es lo que permite al receptor detectar tramas duplicadas y descartarlas
@@ -26,12 +27,14 @@ static int isValidAck(const uint8_t *buffer, int length, uint8_t expectedSeq) {
 }
 
 // Inyecta el seqNumber actual en la trama, la envía por UDP y espera el ACK
+// Si el temporizador vence sin respuesta, reenvía la misma trama
 // Retorna 0 si el receptor confirmó, o un código de error negativo
 int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData, size_t length) {
     struct socket *socket = NULL;
     uint8_t frame[MAX_BUFFER_SIZE];
     uint8_t ackBuffer[sizeof(Header)];
     uint8_t expectedSeq;
+    int attempt;
     int result;
 
     // Validación de parámetros, retorna EINVAL
@@ -48,25 +51,42 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
     result = ksocketCreate(&socket);
     if (result < 0) return result;
 
-    result = ksocket_sendto(socket, ip_dest, port, frame, length);
-    if (result < 0) {
-        ksocketRelease(socket);
-        return result;
+    // Cada vuelta del ciclo es un envío de la misma trama
+    for (attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+
+        result = ksocket_sendto(socket, ip_dest, port, frame, length);
+        if (result < 0) {
+            ksocketRelease(socket);
+            return result;
+        }
+
+        // ksocket_recvfrom aplica el temporizador internamente con sk_rcvtimeo
+        result = ksocket_recvfrom(socket, ackBuffer, sizeof(ackBuffer), ACK_TIMEOUT_MS);
+
+        if (result == -EAGAIN) {
+            // Venció el temporizador: nadie respondió. Se reenvía la trama
+            pr_warn("sendFrameStopAndWait: Timeout en intento %d, reenviando\n", attempt);
+            continue;
+        }
+
+        if (result < 0) {
+            // Error real del socket
+            ksocketRelease(socket);
+            return result;
+        }
+
+        if (isValidAck(ackBuffer, result, expectedSeq)) {
+            currentSeq = expectedSeq;   // Alternar el bit para la trama siguiente
+            ksocketRelease(socket);
+            return 0;
+        }
+
+        // Llegó algo que no es el ACK esperado, ya sea un duplicado o basura
+        // Se descarta y el siguiente intento reenvía la trama
+        pr_warn("sendFrameStopAndWait: Respuesta invalida en intento %d\n", attempt);
     }
 
-    // ksocket_recvfrom aplica el temporizador internamente con sk_rcvtimeo
-    result = ksocket_recvfrom(socket, ackBuffer, sizeof(ackBuffer), ACK_TIMEOUT_MS);
-    if (result < 0) {
-        ksocketRelease(socket);
-        return result;
-    }
-
-    if (!isValidAck(ackBuffer, result, expectedSeq)) {
-        ksocketRelease(socket);
-        return -EBADMSG;
-    }
-
-    currentSeq = expectedSeq;   // Alternar el bit para la trama siguiente
+    pr_err("sendFrameStopAndWait: Sin ACK tras %d intentos\n", MAX_RETRIES);
     ksocketRelease(socket);
-    return 0;
+    return -ETIMEDOUT;
 }
