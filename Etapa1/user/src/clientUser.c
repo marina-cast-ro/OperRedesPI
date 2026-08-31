@@ -118,6 +118,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
 
         // Si el frame es de tipo END se envia el ACK y sigue escuchando
         if (frame.header.type == PROTOCOL_FRAME_END) {
+			expectedSequence = (uint8_t)(1 - expectedSequence);
             if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
                 perror("Error enviando ACK");
             }

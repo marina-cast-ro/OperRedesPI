@@ -11,11 +11,26 @@
 #include <linux/errno.h>
 
 int ksocketCreate(struct socket **socket_out) {
+    struct sockaddr_in local_addr;
     int error = sock_create_kern(&init_net, AF_INET, SOCK_DGRAM, IPPROTO_UDP, socket_out);
     if (error < 0) {
         pr_err("ksocketCreate: Error al crear el Kernel socket, error=%d\n", error);
         return error;
     }
+
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family      = AF_INET;
+    local_addr.sin_port        = htons(8081);
+    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    error = kernel_bind(*socket_out, (struct sockaddr *)&local_addr, sizeof(local_addr));
+    if (error < 0) {
+        pr_err("ksocketCreate: Error en kernel_bind, error=%d\n", error);
+        sock_release(*socket_out);
+        *socket_out = NULL;
+        return error;
+    }
+
     return 0;
 }
 
@@ -76,7 +91,7 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
     kBuffer.iov_base = buffer;
     kBuffer.iov_len  = length;
 
-    int error = kernel_recvmsg(socket, &message, &kBuffer, 1, length, msg.msg_flags);
+    int error = kernel_recvmsg(socket, &message, &kBuffer, 1, length, 0);
     if (error < 0) {
         if (error == -EAGAIN) {
             pr_warn("ksocket_recvfrom: Timeout esperando datos\n");

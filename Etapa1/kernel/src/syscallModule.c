@@ -2,8 +2,8 @@
 #include <linux/init.h>
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
-#include <linux/protocol.h>
-#include <linux/stopAndWait.h>
+#include "protocol.h"
+#include "stopAndWait.h"
 
 // Definición de Syscall para el Kernel Base
 SYSCALL_DEFINE4(sendFrame, 
@@ -39,11 +39,14 @@ SYSCALL_DEFINE4(sendFrame,
     pr_info("[syscallSendFrame] IP Dest : %s\n", kernel_ip);
     pr_info("[syscallSendFrame] Port     : %d\n", port);
     pr_info("[syscallSendFrame] Size     : %zu bytes\n", length);
-    pr_info("[syscallSendFrame] Header Type: %u\n", kernel_buffer[0]);
+    pr_info("[syscallSendFrame] Header Type: %hhu\n", kernel_buffer[0]);
 
-    // 5. Enviar mediante Stop-and-Wait (Futura implementación)
-    // int response = sendFrameStopAndWait(kernel_ip, port, (Frame *)kernel_buffer, length);
-    // if (response < 0) return response;
+    //5. Enviar mediante Stop-and-Wait (Futura implementación)
+    int response = sendFrameStopAndWait(kernel_ip, port, (const uint8_t *)kernel_buffer, length);
+    if (response < 0) {
+        pr_err("[syscallSendFrame] Error en Stop-and-Wait, code=%d\n", response);
+        return response;
+    }
 
     return 0;
 }
