@@ -65,9 +65,11 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
 
     // Configuración de timeout
     // TODO: El struct de "socket" tengo que definirlo e inicializarlo fuera de este código
-    (timeout_ms > 0)
-        ? socket->sk->sk_rcvtime = msecs_to_jiffies(timeout_ms);
-        : socket->sk->sk_rcvtimeo = MAX_SCHEDULE_TIMEOUT;
+    if (timeout_ms > 0) {
+        socket->sk->sk_rcvtimeo = msecs_to_jiffies(timeout_ms);
+    } else {
+        socket->sk->sk_rcvtimeo = MAX_SCHEDULE_TIMEOUT;
+    }
 
     // Configuración del mensaje y contenedor de datos para el Kernel
     memset(&message, 0, sizeof(message));
@@ -76,9 +78,11 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
 
     int error = kernel_recvmsg(socket, &msg, &vec, 1, length, msg.msg_flags);
     if (error < 0) {
-        (error == -EAGAIN)
-            ? pr_warn("ksocket_recvfrom: Timeout esperando datos\n");
-            : pr_err("ksocket_recvfrom: Fallo al recibir, error=%d\n", error);
+        if (error == -EAGAIN) {
+            pr_warn("ksocket_recvfrom: Timeout esperando datos\n");
+        } else {
+            pr_err("ksocket_recvfrom: Fallo al recibir, error=%d\n", error);
+        }
     }
 
     return error;
