@@ -7,7 +7,7 @@ BUILDDIR := build
 # --- DEFINICIÓN DE TARGETS ---
 TARGET_SERVER := $(BUILDDIR)/server
 TARGET_CLIENT := $(BUILDDIR)/client
-SERVER_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/server*.c)) $(BUILDDIR)/syscall_send_protocol.o
+SERVER_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/server*.c)) 
 CLIENT_OBJS := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(wildcard $(SRCDIR)/client*.c))
 
 # --- DEFINICIÓN DE ARCHIVOS FUENTE Y OBJETO ---
@@ -37,34 +37,34 @@ client: $(TARGET_CLIENT)
 
 # Banderas para depuración de memoria con AdressSanitizer (solo compilación)
 dev: clean
-    $(MAKE) CFLAGS='$(DEVFLAGS)'
+	$(MAKE) CFLAGS='$(DEVFLAGS)'
 
 # Banderas para depuración de hilos con ThreadSanitizer (solo compilación)
 tsan: clean
-    $(MAKE) CC=clang CFLAGS='$(TSANFLAGS)'
+	$(MAKE) CC=clang CFLAGS='$(TSANFLAGS)'
 
 # Banderas para optimización del código (solo compilación)
 opt: clean
-    $(MAKE) CFLAGS='$(OPTFLAGS)'
+	$(MAKE) CFLAGS='$(OPTFLAGS)'
 
 # Compilación de los archivos fuente y generación del ejecutable
 $(TARGET_SERVER): $(SERVER_OBJS) | $(BUILDDIR)
-    $(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(TARGET_CLIENT): $(CLIENT_OBJS) | $(BUILDDIR)
-    $(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Compilación de archivos fuente individuales y generación de archivos objeto
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
-    $(CC) $(CFLAGS) -I$(INCDIR) -MMD -c $< -o $@
+	$(CC) $(CFLAGS) -I$(INCDIR) -MMD -c $< -o $@
 
 # Creación del directorio de compilación si no existe
 $(BUILDDIR):
-    mkdir -p $@
+	mkdir -p $@
 
 # Inclusión de dependencias generadas automáticamente
 -include $(DEPS)
 
 # --- LIMPIEZA DE ARCHIVOS GENERADOS ---
 clean:
-    rm -rf $(BUILDDIR) *.txt
+	rm -rf $(BUILDDIR) output.txt
