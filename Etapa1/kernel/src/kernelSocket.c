@@ -76,7 +76,7 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
     kBuffer.iov_base = buffer;
     kBuffer.iov_len  = length;
 
-    int error = kernel_recvmsg(socket, &msg, &vec, 1, length, msg.msg_flags);
+    int error = kernel_recvmsg(socket, &message, &kBuffer, 1, length, msg.msg_flags);
     if (error < 0) {
         if (error == -EAGAIN) {
             pr_warn("ksocket_recvfrom: Timeout esperando datos\n");

@@ -11,6 +11,6 @@ size_t buildFrame(uint8_t frameType, const uint8_t *payloadBuffer, uint16_t payl
 size_t buildEndFrame(uint8_t *outFrameBuffer, size_t maxOutBufferSize);
 
 // --- ENVIAR TRAMAS ---
-int sendFrameSockets(const uint8_t *frameBuffer, size_t frameSize);
+int sendFrameSockets(const char *ip, int port, const uint8_t *frameBuffer, size_t frameSize);
 
 #endif // FRAMEBUILDER_H
