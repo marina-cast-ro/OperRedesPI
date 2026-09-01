@@ -103,7 +103,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         // Los frames deben tener minimo el Header (4 bytes). 
         // Si llego menos al frame esta corrupto o incompleto
         if ((size_t)receivedBytes < sizeof(Header)) {
-            fprintf(stderr, "Frame ignorado: Incompleto o corrupto\n");
+            fprintf(stderr, "[Receptor] Frame ignorado: Incompleto o corrupto\n");
             continue;
         }
 
@@ -112,22 +112,23 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
 
         // Verificacion de integridad de los datos:
             if (payloadLength > MAX_PAYLOAD_SIZE || frameLength != (size_t)receivedBytes) {
-            fprintf(stderr, "Frame ignorado: longitud incorrecta\n");
+            fprintf(stderr, "[Receptor] Frame ignorado: longitud incorrecta\n");
             continue;
         }
 
         // Si el frame es de tipo END se envia el ACK y sigue escuchando
         if (frame.header.type == PROTOCOL_FRAME_END) {
+			printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
 			expectedSequence = (uint8_t)(1 - expectedSequence);
             if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
-                perror("Error enviando ACK");
+                perror("Error enviando ACK para END");
             }
             continue;
         }
 
         // Si el frame no es de tipo DATA se descarta por no tener informacion para guardar
         if (frame.header.type != PROTOCOL_FRAME_DATA) {
-            fprintf(stderr, "Frame ignorado: No contiene datos a guardar\n");
+            fprintf(stderr, "[Receptor] Frame ignorado: No es tipo DATA\n");
             continue;
         }
 
@@ -136,6 +137,8 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         // Si no coincide, ya recibimos ese frame quiere decir que el emisor lo 
         // volvio a mandar (ACK se perdio) y no quiero guardar un dato repetido.
         if (frame.header.seqNumber == expectedSequence) {
+			printf("[Receptor] Trama DATA válida | Seq: %u (Esperado) | Tamaño payload: %u bytes\n", 
+                   frame.header.seqNumber, payloadLength);
             if (payloadLength > 0) {
                 // Se escriben bytes en el archivo
                 if (fwrite(frame.payload, 1, payloadLength, outputFile) != payloadLength) {
@@ -143,17 +146,23 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
                     clearerr(outputFile);
                 } else {
                     fflush(outputFile);
+					printf("[Receptor] -> Datos guardados exitosamente en disco.\n");
                 }
             }
             expectedSequence = (uint8_t)(1 - expectedSequence);
         } else {
-            printf("Frame duplicado recibido: secuencia %u\n", frame.header.seqNumber);
+            printf("[Receptor] Trama DUPLICADA detectada | Seq recibido: %u | Seq esperado: %u (Reenviando ACK previo)\n", 
+                   frame.header.seqNumber, expectedSequence);
         }
 
         // Se manda ACK sin importar si los datos eran nuevo o duplicados
         if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
             perror("Error enviando ACK");
+        } else {
+            printf("[Receptor] <- ACK enviado con próximo Seq esperado: %u\n", expectedSequence);
         }
+
+		printf("--------------------------------------------------\n");
     }
     fclose(outputFile);
     close(clientSocket);

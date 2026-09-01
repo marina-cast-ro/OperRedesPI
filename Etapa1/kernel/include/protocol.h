@@ -22,7 +22,7 @@
 #endif
 
 // TODO: Definir el número final asignado a la syscall y la IP destino del receptor
-//#define SYS_UDP_RELIABLE 450 
+//#define SYS_UDP_RELIABLE 462  
 //#define DEST_IP "192.168.1.50"
 
 // --- Tamaños y Configuración de Red ---
