@@ -1,9 +1,14 @@
-# CI-0123 - Proyecto Integrador Redes-Oper
+<p align="center">
+  <img src="assets/koopa-troopas-logo.png" alt="Logo del equipo Koopa Troopas" width="420">
+</p>
 
-**Universidad de Costa Rica**
-Facultad de Ingeniería - Escuela de Ciencias de la Computación e Informática
+<h1 align="center">CI-0123 - Proyecto Integrador Redes-Oper</h1>
 
-II Semestre, 2026
+<p align="center">
+  <strong>Universidad de Costa Rica</strong><br>
+  Facultad de Ingeniería - Escuela de Ciencias de la Computación e Informática<br>
+  II Semestre, 2026
+</p>
 
 ---
 
