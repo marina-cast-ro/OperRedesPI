@@ -1,0 +1,7 @@
+[2026-09-01 11:49:30] Detected movement (SIMULADO)
+[2026-09-01 11:49:33] Detected movement (SIMULADO)
+[2026-09-01 11:49:35] Detected movement (SIMULADO)
+[2026-09-01 11:49:38] Detected movement (SIMULADO)
+[2026-09-01 11:49:40] Detected movement (SIMULADO)
+[2026-09-01 11:49:43] Detected movement (SIMULADO)
+[2026-09-01 11:49:45] Detected movement (SIMULADO)

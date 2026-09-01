@@ -11,12 +11,19 @@ int sendFileOverProtocol(const char *filePath, const char *ip, int port) {
     int success = 1;
 
     while (success && (payloadSize = readNextPayload(file, payloadBuffer)) > 0) {
-        uint8_t frameBuffer[sizeof(Header) + MAX_PAYLOAD_SIZE];
-        size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, payloadBuffer, payloadSize, frameBuffer, sizeof(frameBuffer));//empaqueta el txt para enviarse
-       
-        if(sendFrameSockets(ip, port, frameBuffer, frameSize) != 0){
-            success = 0;
-        }
+		uint8_t frameBuffer[sizeof(Header) + MAX_PAYLOAD_SIZE];
+		size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, payloadBuffer, payloadSize, frameBuffer, sizeof(frameBuffer));//empaqueta el txt para enviarse
+		
+		// Probabilidad de 70% de éxito de envío
+		int randomNum = (rand() % 100) + 1;
+		if (randomNum < 70) {
+			if (sendFrameSockets(ip, port, frameBuffer, frameSize) != 0) {
+				printf("No se logro el guardado del frame\n");
+				success = 0;
+			}
+		} else {
+			printf("Paquete perdido (random = %d)\n", randomNum);
+		}
     }
 
     uint8_t endFrameBuffer[sizeof(Header)];

@@ -11,6 +11,9 @@ int main(int argc, char *argv[]) {
     int port = atoi(argv[2]);
     const char *path = argv[3];
 
+	// Semilla de aleatoriedad para el 70% exito - 30% fallo de datos 
+	srand(time(NULL));
+
     if (sendFileOverProtocol(path, ip, port) == 0) {
         printf("Envio exitoso\n");
 		FILE *reset = fopen(path, "w");//el archivo ahora esta vacio
