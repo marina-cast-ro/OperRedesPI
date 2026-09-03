@@ -86,7 +86,12 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
 
         if (isValidAck(ackBuffer, result, expectedSeq)) {
 			pr_info("[KERNEL SPACE]: ACK recibido con exito, trama confirmada (Seq: %d)\n\n", expectedSeq);
-            currentSeq = expectedSeq;   // Alternar el bit para la trama siguiente
+            // El bit vuelve a 0 para que la proxima transferencia arranque en fase con el receptor.
+            if (((Header *)frame)->type == PROTOCOL_FRAME_END) {
+                initProtocolState();
+            } else {
+                currentSeq = expectedSeq;
+            }
             ksocketRelease(socket);
             return 0;
         }

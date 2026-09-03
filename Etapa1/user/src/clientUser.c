@@ -120,8 +120,8 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         if (frame.header.type == PROTOCOL_FRAME_END) {
 			printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
 			printf("--------------------------------------------------\n\n");
-			expectedSequence = (uint8_t)(1 - expectedSequence);
-            if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
+			expectedSequence = 0;
+            if (sendAck(clientSocket, &senderAddress, senderLength, (uint8_t)(1 - frame.header.seqNumber)) < 0) {
                 perror("Error enviando ACK para END");
             }
             continue;
