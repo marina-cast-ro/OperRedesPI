@@ -1,5 +1,6 @@
 #include "../include/stopAndWait.h"
 #include "../include/kernelSocket.h"
+#include <linux/random.h>
 
 // Configuración del temporizador de retransmisión
 #define ACK_TIMEOUT_MS 200   // Espera del ACK antes de reenviar la trama
@@ -54,10 +55,18 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
     // Cada vuelta del ciclo es un envío de la misma trama
     for (attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
-        result = ksocket_sendto(socket, ip_dest, port, frame, length);
-        if (result < 0) {
-            ksocketRelease(socket);
-            return result;
+		// --- SIMULACIÓN DE PÉRDIDA DEL 30% ---
+        if ((get_random_u32() % 100) < 30) {
+            pr_warn("[KERNEL SPACE] [SIMULACION DE PERDIDA]: Trama descartada intencionalmente en intento %d\n", attempt);
+            // Omitimos ksocket_sendto para que el paquete se "pierda"
+            // Esto causa que recvfrom expire por timeout (-EAGAIN) y fuerce el reenvío
+        } else {
+			pr_info("[sendFrameStopAndWait] Enviando trama Seq: %d (Intento %d)...\n", currentSeq, attempt);
+            result = ksocket_sendto(socket, ip_dest, port, frame, length);
+            if (result < 0) {
+                ksocketRelease(socket);
+                return result;
+            }
         }
 
         // ksocket_recvfrom aplica el temporizador internamente con sk_rcvtimeo
@@ -65,7 +74,7 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
 
         if (result == -EAGAIN) {
             // Venció el temporizador: nadie respondió. Se reenvía la trama
-            pr_warn("sendFrameStopAndWait: Timeout en intento %d, reenviando\n", attempt);
+            pr_warn("[KERNEL SPACE]: Timeout en intento %d, reenviando\n", attempt);
             continue;
         }
 
@@ -76,6 +85,7 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
         }
 
         if (isValidAck(ackBuffer, result, expectedSeq)) {
+			pr_info("[KERNEL SPACE]: ACK recibido con exito, trama confirmada (Seq: %d)\n\n", expectedSeq);
             currentSeq = expectedSeq;   // Alternar el bit para la trama siguiente
             ksocketRelease(socket);
             return 0;
@@ -83,10 +93,10 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
 
         // Llegó algo que no es el ACK esperado, ya sea un duplicado o basura
         // Se descarta y el siguiente intento reenvía la trama
-        pr_warn("sendFrameStopAndWait: Respuesta invalida en intento %d\n", attempt);
+        pr_warn("[KERNEL SPACE]: Respuesta invalida en intento %d\n", attempt);
     }
 
-    pr_err("sendFrameStopAndWait: Sin ACK tras %d intentos\n", MAX_RETRIES);
+    pr_err("[KERNEL SPACE]: Sin ACK tras %d intentos\n\n", MAX_RETRIES);
     ksocketRelease(socket);
     return -ETIMEDOUT;
 }

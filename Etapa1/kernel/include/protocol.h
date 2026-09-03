@@ -3,9 +3,13 @@
 
 #ifdef __KERNEL__
     /* --- Headers para Kernel Space --- */
+    #include <net/sock.h>
+    #include <linux/socket.h>
     #include <linux/types.h>
+    #include <linux/inet.h>
 	#include <linux/net.h>
 	#include <linux/in.h>
+    #include <linux/errno.h>
 #else
     /* --- Headers para User Space --- */
     #include <stdint.h>
@@ -18,7 +22,7 @@
 #endif
 
 // TODO: Definir el número final asignado a la syscall y la IP destino del receptor
-//#define SYS_UDP_RELIABLE 450 
+//#define SYS_UDP_RELIABLE 470  
 //#define DEST_IP "192.168.1.50"
 
 // --- Tamaños y Configuración de Red ---

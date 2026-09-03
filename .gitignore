@@ -2,3 +2,5 @@
 build/
 .vscode/
 output.txt
+__pycache__/
+sensor_data.txt

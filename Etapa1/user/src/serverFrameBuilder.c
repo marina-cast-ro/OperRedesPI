@@ -34,18 +34,12 @@ size_t buildEndFrame(uint8_t *outFrameBuffer, size_t maxOutBufferSize) {
 
 // --- ENVIAR TRAMAS ---
 // Retorna: 0 si se envió correctamente, -1 si ocurrió un error en el socket/syscall.
-int sendFrameSockets(const uint8_t *frameBuffer, size_t frameSize) {
+int sendFrameSockets(const char *ip, int port, const uint8_t *frameBuffer, size_t frameSize) {
     if (!frameBuffer || frameSize == 0) {
         return -1; // Error de parámetros
     }
 
-    /* -------------------------------------------------------------------
-     * PARA INTEGRACIÓN (Descomentar cuando el módulo del Kernel esté listo)
-     * -------------------------------------------------------------------
-     * long result = syscall(SYS_UDP_RELIABLE, DEST_IP, DEFAULT_PORT, frameBuffer, frameSize);
-     * return (result == 0) ? 0 : -1;
-     * ------------------------------------------------------------------- */
+    long result = syscall(SYS_UDP_RELIABLE, ip, port, frameBuffer, frameSize);
+    return (result == 0) ? 0 : -1;
 
-    // PARA PRUEBA LOCAL: Simula que el Kernel envió la trama y recibió el ACK con éxito
-    return 0;
 }

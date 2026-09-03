@@ -1,5 +1,5 @@
-#ifndef KERNELSOCKETH
-#define KERNELSOCKETH
+#ifndef KERNELSOCKET_H
+#define KERNELSOCKET_H
 
 #include "protocol.h"
 
@@ -13,4 +13,4 @@ void ksocketRelease(struct socket *socket);
 int ksocket_sendto(struct socket *socket, const char *ip_dest, int port, const void *buffer, size_t length);
 int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long timeout_ms);
 
-#endif
+#endif  // KERNELSOCKET_H
