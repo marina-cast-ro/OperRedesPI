@@ -1,5 +1,6 @@
 #include "../include/stopAndWait.h"
 #include "../include/kernelSocket.h"
+#include <linux/random.h>
 
 // Configuración del temporizador de retransmisión
 #define ACK_TIMEOUT_MS 200   // Espera del ACK antes de reenviar la trama
@@ -54,10 +55,17 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
     // Cada vuelta del ciclo es un envío de la misma trama
     for (attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
-        result = ksocket_sendto(socket, ip_dest, port, frame, length);
-        if (result < 0) {
-            ksocketRelease(socket);
-            return result;
+		// --- SIMULACIÓN DE PÉRDIDA DEL 30% ---
+        if ((get_random_u32() % 100) < 30) {
+            pr_warn("sendFrameStopAndWait [SIMULACION DE PERDIDA]: Trama descartada intencionalmente en intento %d\n", attempt);
+            // Omitimos ksocket_sendto para que el paquete se "pierda"
+            // Esto causa que recvfrom expire por timeout (-EAGAIN) y fuerce el reenvío
+        } else {
+            result = ksocket_sendto(socket, ip_dest, port, frame, length);
+            if (result < 0) {
+                ksocketRelease(socket);
+                return result;
+            }
         }
 
         // ksocket_recvfrom aplica el temporizador internamente con sk_rcvtimeo
