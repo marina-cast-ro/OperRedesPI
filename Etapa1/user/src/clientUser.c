@@ -42,7 +42,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
     int clientSocket;
     struct sockaddr_in localAddress;
     FILE *outputFile;
-    uint8_t expectedSequence = 0;
+    uint8_t expectedSequence = 1;
 
     if (!outputPath) {
         fprintf(stderr, "Error: archivo de salida invalido\n");
@@ -69,13 +69,22 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         return EXIT_FAILURE;
     }
 
-    // Abrimos el archivo en modo append
+    // Abrimos el archivo en modo escritura
+    outputFile = fopen(outputPath, "w");
+    if (!outputFile) {
+        perror("Error abriendo archivo de salida");
+        fclose(outputFile);
+        return EXIT_FAILURE;
+    }
+
+    // Abrimos el archivo en modo escritura
     outputFile = fopen(outputPath, "a");
     if (!outputFile) {
         perror("Error abriendo archivo de salida");
         close(clientSocket);
         return EXIT_FAILURE;
     }
+
 
     printf("Cliente escuchando en puerto %u\n", localPort);
     printf("Guardando mediciones en %s\n", outputPath);
@@ -103,7 +112,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         // Los frames deben tener minimo el Header (4 bytes). 
         // Si llego menos al frame esta corrupto o incompleto
         if ((size_t)receivedBytes < sizeof(Header)) {
-            fprintf(stderr, "[Receptor] Frame ignorado: Incompleto o corrupto\n");
+            fprintf(stderr, "[Receptor] DESCARTADO: Frame ignorado: Incompleto o corrupto\n");
             continue;
         }
 
