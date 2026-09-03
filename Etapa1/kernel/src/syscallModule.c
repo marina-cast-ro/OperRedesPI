@@ -35,11 +35,13 @@ SYSCALL_DEFINE4(sendFrame,
     }
 
     // 4. IMPRIMIR DATOS RECIBIDOS EN DMESG
+	/*
     pr_info("[syscallSendFrame] --- TRAMA RECIBIDA EN KERNEL ---\n");
     pr_info("[syscallSendFrame] IP Dest : %s\n", kernel_ip);
     pr_info("[syscallSendFrame] Port     : %d\n", port);
     pr_info("[syscallSendFrame] Size     : %zu bytes\n", length);
     pr_info("[syscallSendFrame] Header Type: %hhu\n\n", kernel_buffer[0]);
+	*/
 
     //5. Enviar mediante Stop-and-Wait (Futura implementación)
     int response = sendFrameStopAndWait(kernel_ip, port, (const uint8_t *)kernel_buffer, length);
