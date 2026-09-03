@@ -12,14 +12,16 @@ int main(int argc, char *argv[]) {
     const char *path = argv[3];
 
     if (sendFileOverProtocol(path, ip, port) == 0) {
-        printf("Envio exitoso\n");
+        printf("[USER SPACE] Envio exitoso\n\n");
+		printf("--------------------------------------------------\n\n");
 		FILE *reset = fopen(path, "w");//el archivo ahora esta vacio
     	if(reset){
 			fclose(reset);
 		}
 		return 0;
     } else {
-        fprintf(stderr, "Fallo el envio\n");
+        fprintf(stderr, "[USER SPACE] Fallo el envio\n\n");
+		printf("--------------------------------------------------\n\n");
         return 1;
     }
 }
