@@ -45,6 +45,46 @@ documentación, diseño e implementación de cada etapa.
 | 4     | -                                          | -           |
 | 5     | -                                          | -           |
 
-## Cómo ejecutar
+## Instrucciones de Uso
 
-_Pendiente: instrucciones de build y ejecución._
+### Etapa 1
+
+#### Compilación
+
+> Ubicarse dentro de la carpeta Etapa1/user/
+
+``` bash
+ 
+# Compilación estándar 
+make all
+
+# Compilación del código del emisor
+make server
+
+# Compilación del código del receptor
+make client
+
+# Limpiar los archivos compilados
+make clean
+
+```
+
+#### Ejecución
+
+> Ubicarse dentro de la carpeta Etapa1/sensor/
+
+``` bash
+
+# Ejecución real (con sensor de movimiento)
+python3 movementSensor.py <ip_dest> <puerto> 
+
+# Ejecución simulada (sin sensor conectado)
+python3 simulateSensor.py <ip_dest> <puerto> --interval <segundos> --motion-every <segundos>
+
+```
+
+### Etapa 2
+
+_Pendiente: instrucciones de compilación y ejecución._
+
+> Ubicarse dentro de la carpeta Etapa2/
