@@ -8,6 +8,10 @@
 
 ## Tareas de cada estudiante
 
+### Tareas en Conjunto  
+
+- [x] Crear `include/protocol.h` con la `struct Header` de N bytes y armar el `Makefile` del proyecto.
+
 ### server_user.c
 
 - [x] Capturar datos del sensor en la Raspberry Pi y generar el archivo `.txt` local.
@@ -27,10 +31,6 @@
 - [x] Bucle de recepción con `recvfrom()`, extracción de Header y filtrado de tramas duplicadas.
 - [x] Generar y responder el ACK con el bit conmutado (1 - N).
 - [x] Escribir los datos recibidos en el archivo `.txt` local, procesar trama FIN y notificar al usuario.
-
-### Tareas en Conjunto  
-
-- [x] Crear `include/protocol.h` con la `struct Header` de N bytes y armar el `Makefile` del proyecto.
 
 ## Diagrama de Secuencia del Protocolo
 
