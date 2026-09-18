@@ -24,6 +24,7 @@ typedef struct {
 } TLBEntry;
 
 // --- Firmas de funciones ---
+// Traducir de dirección virtual a dirección física
 uint32_t translateAddress(const uint32_t virt_address);
 
 #endif // TLBPAGING_H
