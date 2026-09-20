@@ -1,8 +1,8 @@
 #ifndef TLBPAGING_H
 #define TLBPAGING_H
 
-#define NUM_PAGES 32	// Cubre de sobra los ~20 hosts + enrutadores
-#define TLB_SIZE 4 		// "Memoria caché" pequeña para guardar las traducciones usadas recientemente
+#define NUM_PAGES 32			// Cubre de sobra los ~20 hosts + enrutadores
+#define TLB_SIZE 4 				// "Memoria caché" pequeña para guardar las traducciones usadas recientemente
 #define MMU_ERROR 0xFFFFFFFF
 
 #include <stdint.h>
@@ -31,5 +31,8 @@ typedef struct {
 // Traducir una dirección virtual a física usando TLB y Page Table
 // Retorna la dirección física traducida, o MMU_ERROR (0xFFFFFFFF) si hay Page Fault o VPN fuera de rango
 uint32_t translateAddress(const uint32_t virtAddress);
+
+// Inicializa la Page Table en 1:1 y la TLB totalmente vacía/inválida
+void initMMU(void);
 
 #endif // TLBPAGING_H
