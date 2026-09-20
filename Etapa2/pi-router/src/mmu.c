@@ -1,4 +1,4 @@
-#include "tlbPaging.h"
+#include "mmu.h"
 
 // Arreglo estatico que representa la Page Table 
 // indice = VNP, valor = PFN
