@@ -28,7 +28,7 @@ typedef struct {
 } TLBEntry;
 
 // --- Firmas de funciones ---
-// Traducir una dirección virtual a física usando TLB y Page Table
+// Traduce una dirección virtual a física usando TLB y Page Table
 // Retorna la dirección física traducida, o MMU_ERROR (0xFFFFFFFF) si hay Page Fault o VPN fuera de rango
 uint32_t translateAddress(const uint32_t virtAddress);
 
