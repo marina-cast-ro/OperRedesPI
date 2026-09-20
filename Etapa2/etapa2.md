@@ -32,9 +32,9 @@ Antes del martes 21 de septiembre (clase de PI).
 
 ### Módulo 2: Arquitectura MMU y Memoria Virtual (Dos personas)
 
-- [ ] Crear las estructuras para traducir direcciones virtuales a físicas (dividiendo en páginas de 8 bytes) y el sistema de reemplazo rápido FIFO.
-- [ ] Programar la lógica que toma una dirección virtual y la convierte en una dirección física en la RAM.
-- [ ] Gestionar la actualización de entradas dentro del TLB.
+- [x] Crear las estructuras para traducir direcciones virtuales a físicas (dividiendo en páginas de 8 bytes) y el sistema de reemplazo rápido FIFO.
+- [x] Programar la lógica que toma una dirección virtual y la convierte en una dirección física en la RAM.
+- [x] Gestionar la actualización de entradas dentro del TLB.
 
 ---
 
