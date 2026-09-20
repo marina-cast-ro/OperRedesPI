@@ -19,6 +19,7 @@
 
 // TODO: Definir el número final asignado a la syscall y la IP destino del receptor
 #define SYS_UDP_RELIABLE 470 
+#define SYS_INIT_PROTOCOL 471
 //#define DEST_IP "192.168.1.50"
 
 // --- Configuración de Red ---

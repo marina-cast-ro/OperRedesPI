@@ -10,6 +10,10 @@ int sendFileOverProtocol(const char *filePath, const char *ip, int port) {
     size_t payloadSize;
     int success = 1;
 
+	// --- REINICIAR PROTOCOLO EN EL KERNEL ---
+    // Fuerza currentSeq = 0 antes de enviar la primera trama del archivo
+    syscall(SYS_INIT_PROTOCOL);
+
     while (success && (payloadSize = readNextPayload(file, payloadBuffer)) > 0) {
         uint8_t frameBuffer[sizeof(Header) + MAX_PAYLOAD_SIZE];
         size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, payloadBuffer, payloadSize, frameBuffer, sizeof(frameBuffer));//empaqueta el txt para enviarse

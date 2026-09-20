@@ -42,7 +42,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
     int clientSocket;
     struct sockaddr_in localAddress;
     FILE *outputFile;
-    uint8_t expectedSequence = 1;
+    uint8_t expectedSequence = 0;
 
     if (!outputPath) {
         fprintf(stderr, "Error: archivo de salida invalido\n");
@@ -71,20 +71,11 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
 
     // Abrimos el archivo en modo escritura
     outputFile = fopen(outputPath, "w");
-    if (!outputFile) {
-        perror("Error abriendo archivo de salida");
-        fclose(outputFile);
-        return EXIT_FAILURE;
-    }
-
-    // Abrimos el archivo en modo escritura
-    outputFile = fopen(outputPath, "a");
-    if (!outputFile) {
-        perror("Error abriendo archivo de salida");
-        close(clientSocket);
-        return EXIT_FAILURE;
-    }
-
+	if (!outputFile) {
+		perror("Error abriendo archivo de salida");
+		close(clientSocket);
+		return EXIT_FAILURE;
+	}
 
     printf("Cliente escuchando en puerto %u\n", localPort);
     printf("Guardando mediciones en %s\n", outputPath);
@@ -127,12 +118,15 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
 
         // Si el frame es de tipo END se envia el ACK y sigue escuchando
         if (frame.header.type == PROTOCOL_FRAME_END) {
-			printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
-			printf("--------------------------------------------------\n\n");
-			expectedSequence = (uint8_t)(1 - expectedSequence);
+            if (frame.header.seqNumber == expectedSequence) {
+                printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
+                fflush(outputFile);
+                expectedSequence = (uint8_t)(1 - expectedSequence);
+            }
             if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
                 perror("Error enviando ACK para END");
             }
+            printf("--------------------------------------------------\n\n");
             continue;
         }
 

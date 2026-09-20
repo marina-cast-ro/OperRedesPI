@@ -3,8 +3,9 @@
 #include <linux/random.h>
 
 // Configuración del temporizador de retransmisión
-#define ACK_TIMEOUT_MS 200   // Espera del ACK antes de reenviar la trama
-#define MAX_RETRIES    5     // Intentos por trama antes de darse por vencido
+#define ACK_TIMEOUT_MS 300   // Espera del ACK antes de reenviar la trama
+#define MAX_RETRIES    15     // Intentos por trama antes de darse por vencido
+#define LOSS_PERCENTAGE 30
 
 // Bit de secuencia del emisor. Alterna entre 0 y 1 con cada trama confirmada
 // Es lo que permite al receptor detectar tramas duplicadas y descartarlas
@@ -56,7 +57,7 @@ int sendFrameStopAndWait(const char *ip_dest, int port, const uint8_t *frameData
     for (attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
 		// --- SIMULACIÓN DE PÉRDIDA DEL 30% ---
-        if ((get_random_u32() % 100) < 30) {
+        if ((get_random_u32() % 100) < LOSS_PERCENTAGE) {
             pr_warn("[KERNEL SPACE] [SIMULACION DE PERDIDA]: Trama descartada intencionalmente en intento %d\n", attempt);
             // Omitimos ksocket_sendto para que el paquete se "pierda"
             // Esto causa que recvfrom expire por timeout (-EAGAIN) y fuerce el reenvío

@@ -14,18 +14,18 @@ int ksocketCreate(struct socket **socket_out) {
     struct sockaddr_in local_addr;
     int error = sock_create_kern(&init_net, AF_INET, SOCK_DGRAM, IPPROTO_UDP, socket_out);
     if (error < 0) {
-        pr_err("ksocketCreate: Error al crear el Kernel socket, error=%d\n", error);
+        pr_err("[ksocketCreate] Error al crear el Kernel socket, error=%d\n", error);
         return error;
     }
 
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family      = AF_INET;
-    local_addr.sin_port        = htons(8081);
+    local_addr.sin_port        = htons(0);
     local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     error = kernel_bind(*socket_out, (struct sockaddr *)&local_addr, sizeof(local_addr));
     if (error < 0) {
-        pr_err("ksocketCreate: Error en kernel_bind, error=%d\n", error);
+        pr_err("[ksocketCreate] Error en kernel_bind, error=%d\n", error);
         sock_release(*socket_out);
         *socket_out = NULL;
         return error;
@@ -65,7 +65,7 @@ int ksocket_sendto(struct socket *socket, const char *ip_dest, int port, const v
 
     // Verificación del envío correcto de datos
     int error = kernel_sendmsg(socket, &message, &kBuffer, 1, length);
-    if (error < 0) pr_err("ksocket_sendto: Fallo al enviar, error=%d\n", error);
+    if (error < 0) pr_err("[ksocket_sendto] Fallo al enviar, error=%d\n", error);
 
     return error;
 }
@@ -75,8 +75,8 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
     struct kvec kBuffer;         // Buffer de datos en espacio Kernel
     
     // Validación de parámetros, retorna EINVAL (Invalid argument del Kernel) si hay algo inválido
-    if (!socket || !buffer || length == 0) 
-        return -EINVAL;
+    if (!socket || !socket->sk || !buffer || length == 0)
+		return -EINVAL;
 
     // Configuración de timeout
     // TODO: El struct de "socket" tengo que definirlo e inicializarlo fuera de este código
@@ -94,9 +94,9 @@ int ksocket_recvfrom(struct socket *socket, void *buffer, size_t length, long ti
     int error = kernel_recvmsg(socket, &message, &kBuffer, 1, length, 0);
     if (error < 0) {
         if (error == -EAGAIN) {
-            pr_warn("ksocket_recvfrom: Timeout esperando datos\n");
+            pr_debug("[ksocket_recvfrom] Timeout esperando datos\n");
         } else {
-            pr_err("ksocket_recvfrom: Fallo al recibir, error=%d\n", error);
+            pr_err("[ksocket_recvfrom] Fallo al recibir, error=%d\n", error);
         }
     }
 

@@ -5,7 +5,14 @@
 #include "protocol.h"
 #include "stopAndWait.h"
 
-// Definición de Syscall para el Kernel Base
+// --- Syscall para reiniciar la secuencia a 0 ---
+SYSCALL_DEFINE0(initProtocol) {
+    initProtocolState();
+    pr_info("[syscallInitProtocol] Secuencia del protocolo reiniciada a 0\n");
+    return 0;
+}
+
+// --- Syscall para enviar tramas ---
 SYSCALL_DEFINE4(sendFrame, 
                 const char __user *, ip_dest, 
                 int, port, 
