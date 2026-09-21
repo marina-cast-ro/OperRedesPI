@@ -60,3 +60,38 @@ ConfigRouter initRouter(void) {
     fclose(archivo);
     return router;
 }
+
+static int listening(ConfigRouter router) {
+    char buffer[MAX_BUFFER_SIZE];
+    int received_bytes;
+
+    pr_info("[ROUTER] Escuchando en puerto %d\n", router.port);
+
+    while (!kthread_should_stop()) {
+        memset(buffer, 0, MAX_BUFFER_SIZE);
+
+        // Timeout 1000ms para revisar kthread_should_stop()
+        received_bytes = ksocket_recvfrom(listen_socket, buffer, MAX_BUFFER_SIZE - 1, 1000);
+
+        // Algún conjunto de bytes fueron recibidos
+        if (received_bytes > 0) {
+            pr_info("[ROUTER] Mensaje recibido (%d bytes): %s\n", received_bytes, buffer);
+            // TODO: Acá hacemos el envío al puerto destino correspondiente
+        } 
+        // Error distinto a timeout, espera intencional para reintentar
+        else if (received_bytes != -EAGAIN) {
+            msleep(100);
+        }
+    }
+
+    pr_info("[ROUTER] Escucha de routers vecinos detenida\n");
+    return 0;
+}
+
+static int initRouterListen(ConfigRouter router) {
+    
+}
+
+static int endRouterListen(ConfigRouter router) {
+
+}
