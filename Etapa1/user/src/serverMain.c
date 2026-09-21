@@ -14,10 +14,7 @@ int main(int argc, char *argv[]) {
     if (sendFileOverProtocol(path, ip, port) == 0) {
         printf("[USER SPACE] Envio exitoso\n\n");
 		printf("--------------------------------------------------\n\n");
-		FILE *reset = fopen(path, "w");//el archivo ahora esta vacio
-    	if(reset){
-			fclose(reset);
-		}
+
 		return 0;
     } else {
         fprintf(stderr, "[USER SPACE] Fallo el envio\n\n");
