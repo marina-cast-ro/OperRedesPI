@@ -1,9 +1,13 @@
 #include "mmu.h"
-
+#include "router.h"
 
 // --- MAIN DE PRUEBAS PARA MMU ---
 int main(void) {
 	initMMU();
+    
+    ConfigRouter router = initRouter();
+    if (router.port == ERROR_ROUTER) 
+        return 0;
 
 	printf("--- 1. Llenando la TLB (Páginas 0, 1, 2, 3) ---\n");
     translateAddress(0); // VPN 0 -> Miss (TLB[0])

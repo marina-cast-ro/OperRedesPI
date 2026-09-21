@@ -1,23 +1,30 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 
-#define MAX_NOMBRE_ROUTER 50
-#define MAX_IP            10
-#define MAX_VECINOS       10
+#define MAX_NAME_ROUTER  50   // Tamaño (carácteres) máximo del nombre del router
+#define MAX_PEERS        10   // Valor máximo de vecinos que puede tener el router
+#define ERROR_ROUTER     -1   // Bandera para indicar que el router contiene errores
 
-typedef struct {
-    char nombre[MAX_NOMBRE_ROUTER];
-    char ip[MAX_IP];
-    int puerto;
-} Vecino;
+#include <stdio.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
 
+// Struct de los datos atributos de un vecino
 typedef struct {
-    char routerID[MAX_NOMBRE_ROUTER];
-    int puerto;
-    int num_vecinos;
-    Vecino vecinos[MAX_VECINOS];
+    char id[MAX_NAME_ROUTER];
+    char ip[15];
+    int port;
+} Peer;
+
+// Struct de datos atributos del router
+typedef struct {
+    char id[MAX_NAME_ROUTER];
+    int port;
+    int num_peers;
+    Peer peers[MAX_PEERS];
 } ConfigRouter;
 
-void initRouter(void);
+ConfigRouter initRouter(void);
 
 #endif  // ROUTER_H
