@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+#include "../../../Etapa1/kernel/include/kernelSocket.h"
 
 // Struct de los datos atributos de un vecino
 typedef struct {

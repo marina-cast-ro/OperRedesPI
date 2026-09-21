@@ -27,7 +27,7 @@ void initProtocolState(void) {
     }
 
     // Se crea UN SOLO socket para reutilizarlo en todas las tramas
-    if (ksocketCreate(&kSocket) < 0) {
+    if (ksocketCreate(&kSocket, 0) < 0) {
         pr_err("[initProtocolState] Error al crear el socket persistente\n");
     }
 }

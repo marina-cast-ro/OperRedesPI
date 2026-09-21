@@ -6,7 +6,7 @@
 // === FIRMAS DE FUNCIONES ===
 
 // Crear y cerrar socket UDP en Kernel Space
-int ksocketCreate(struct socket **socket_out);
+int ksocketCreate(struct socket **socket_out, int port);
 void ksocketRelease(struct socket *socket);
 
 // Enviar y recibir datos a nivel de Kernel
