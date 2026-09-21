@@ -109,6 +109,11 @@ static int initRouterListen(ConfigRouter router) {
     return 0;
 }
 
-static int endRouterListen(ConfigRouter router) {
+static void endRouterListen(ConfigRouter router) {
+    if (listen_thread) {
+        kthread_stop(listen_thread);
+    }
 
+    ksocketRelease(listen_socket);
+    pr_info("[ROUTER] Finalización de escucha del router\n");
 }

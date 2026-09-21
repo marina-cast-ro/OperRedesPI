@@ -41,6 +41,6 @@ static int listening(ConfigRouter router);
 static int initRouterListen(ConfigRouter router);
 
 // Router para de escuchar
-static int endRouterListen(ConfigRouter router);
+static void endRouterListen(ConfigRouter router);
 
 #endif  // ROUTER_H
