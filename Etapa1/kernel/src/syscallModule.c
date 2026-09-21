@@ -7,9 +7,12 @@
 
 // --- Syscall para reiniciar la secuencia a 0 ---
 SYSCALL_DEFINE0(initProtocol) {
+    // Cierra el socket anterior si existía y crea uno nuevo
+    cleanupProtocolSocket();
     initProtocolState();
-    pr_info("[syscallInitProtocol] Secuencia del protocolo reiniciada a 0\n");
-    return 0;
+    
+    pr_info("[sys_initProtocol] Estado del protocolo reiniciado y socket persistente listo\n");
+	return 0;
 }
 
 // --- Syscall para enviar tramas ---
@@ -54,6 +57,12 @@ SYSCALL_DEFINE4(sendFrame,
     int response = sendFrameStopAndWait(kernel_ip, port, (const uint8_t *)kernel_buffer, length);
     if (response < 0) {
         pr_err("[syscallSendFrame] Error en Stop-and-Wait, code=%d\n\n", response);
+
+		// Si hay error irrecuperable (ej. -ETIMEDOUT), se limpia el socket
+        if (response == -ETIMEDOUT) {
+            cleanupProtocolSocket();
+        }
+
         return response;
     }
 
