@@ -15,14 +15,13 @@ int main(int argc, char *argv[]) {
 	srand(time(NULL));
 
     if (sendFileOverProtocol(path, ip, port) == 0) {
-        printf("Envio exitoso\n");
-		FILE *reset = fopen(path, "w");//el archivo ahora esta vacio
-    	if(reset){
-			fclose(reset);
-		}
+        printf("[USER SPACE] Envio exitoso\n\n");
+		printf("--------------------------------------------------\n\n");
+
 		return 0;
     } else {
-        fprintf(stderr, "Fallo el envio\n");
+        fprintf(stderr, "[USER SPACE] Fallo el envio\n\n");
+		printf("--------------------------------------------------\n\n");
         return 1;
     }
 }

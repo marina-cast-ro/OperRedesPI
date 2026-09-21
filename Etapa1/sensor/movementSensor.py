@@ -40,6 +40,7 @@ def onMotion():
     storage.storeData(
         f"[{datetime.now():%Y-%m-%d %H:%M:%S}] Detected movement", args.file
     )
+    print("[USER SPACE] Movimiento detectado y guardado")
 
 
 pir.when_motion = onMotion

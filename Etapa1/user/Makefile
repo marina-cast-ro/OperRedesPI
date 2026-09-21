@@ -22,7 +22,7 @@ TSANFLAGS := -g3 -O0 -fsanitize=thread $(WARNFLAGS)
 OPTFLAGS := -O3 -march=native -funroll-loops $(WARNFLAGS)
 
 # Banderas por defecto (si no se especifica otra) para compilación de desarrollo
-CFLAGS ?= $(DEVFLAGS)
+CFLAGS ?= $(WARNFLAGS)
 LDFLAGS := -pthread -lm
 
 .PHONY: all server client dev tsan opt clean

@@ -5,7 +5,17 @@
 #include "protocol.h"
 #include "stopAndWait.h"
 
-// Definición de Syscall para el Kernel Base
+// --- Syscall para reiniciar la secuencia a 0 ---
+SYSCALL_DEFINE0(initProtocol) {
+    // Cierra el socket anterior si existía y crea uno nuevo
+    cleanupProtocolSocket();
+    initProtocolState();
+    
+    pr_info("[sys_initProtocol] Estado del protocolo reiniciado y socket persistente listo\n");
+	return 0;
+}
+
+// --- Syscall para enviar tramas ---
 SYSCALL_DEFINE4(sendFrame, 
                 const char __user *, ip_dest, 
                 int, port, 
@@ -35,16 +45,24 @@ SYSCALL_DEFINE4(sendFrame,
     }
 
     // 4. IMPRIMIR DATOS RECIBIDOS EN DMESG
+	/*
     pr_info("[syscallSendFrame] --- TRAMA RECIBIDA EN KERNEL ---\n");
     pr_info("[syscallSendFrame] IP Dest : %s\n", kernel_ip);
     pr_info("[syscallSendFrame] Port     : %d\n", port);
     pr_info("[syscallSendFrame] Size     : %zu bytes\n", length);
-    pr_info("[syscallSendFrame] Header Type: %hhu\n", kernel_buffer[0]);
+    pr_info("[syscallSendFrame] Header Type: %hhu\n\n", kernel_buffer[0]);
+	*/
 
     //5. Enviar mediante Stop-and-Wait (Futura implementación)
     int response = sendFrameStopAndWait(kernel_ip, port, (const uint8_t *)kernel_buffer, length);
     if (response < 0) {
-        pr_err("[syscallSendFrame] Error en Stop-and-Wait, code=%d\n", response);
+        pr_err("[syscallSendFrame] Error en Stop-and-Wait, code=%d\n\n", response);
+
+		// Si hay error irrecuperable (ej. -ETIMEDOUT), se limpia el socket
+        if (response == -ETIMEDOUT) {
+            cleanupProtocolSocket();
+        }
+
         return response;
     }
 

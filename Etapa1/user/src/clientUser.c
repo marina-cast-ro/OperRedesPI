@@ -69,13 +69,13 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         return EXIT_FAILURE;
     }
 
-    // Abrimos el archivo en modo append
-    outputFile = fopen(outputPath, "a");
-    if (!outputFile) {
-        perror("Error abriendo archivo de salida");
-        close(clientSocket);
-        return EXIT_FAILURE;
-    }
+    // Abrimos el archivo en modo escritura
+    outputFile = fopen(outputPath, "w");
+	if (!outputFile) {
+		perror("Error abriendo archivo de salida");
+		close(clientSocket);
+		return EXIT_FAILURE;
+	}
 
     printf("Cliente escuchando en puerto %u\n", localPort);
     printf("Guardando mediciones en %s\n", outputPath);
@@ -103,7 +103,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
         // Los frames deben tener minimo el Header (4 bytes). 
         // Si llego menos al frame esta corrupto o incompleto
         if ((size_t)receivedBytes < sizeof(Header)) {
-            fprintf(stderr, "[Receptor] Frame ignorado: Incompleto o corrupto\n");
+            fprintf(stderr, "[Receptor] DESCARTADO: Frame ignorado: Incompleto o corrupto\n");
             continue;
         }
 
@@ -118,11 +118,15 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
 
         // Si el frame es de tipo END se envia el ACK y sigue escuchando
         if (frame.header.type == PROTOCOL_FRAME_END) {
-			printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
-			expectedSequence = (uint8_t)(1 - expectedSequence);
+            if (frame.header.seqNumber == expectedSequence) {
+                printf("[Receptor] Trama END recibida. Cerrando sesión lógica...\n");
+                fflush(outputFile);
+                expectedSequence = (uint8_t)(1 - expectedSequence);
+            }
             if (sendAck(clientSocket, &senderAddress, senderLength, expectedSequence) < 0) {
                 perror("Error enviando ACK para END");
             }
+            printf("--------------------------------------------------\n\n");
             continue;
         }
 
@@ -162,7 +166,7 @@ int runClientReceiver(uint16_t localPort, const char *outputPath) {
             printf("[Receptor] <- ACK enviado con próximo Seq esperado: %u\n", expectedSequence);
         }
 
-		printf("--------------------------------------------------\n");
+		printf("--------------------------------------------------\n\n");
     }
     fclose(outputFile);
     close(clientSocket);
