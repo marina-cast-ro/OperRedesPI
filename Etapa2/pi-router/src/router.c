@@ -89,7 +89,24 @@ static int listening(ConfigRouter router) {
 }
 
 static int initRouterListen(ConfigRouter router) {
-    
+    pr_info("[ROUTER] Activando router con el puerto %d\n", router.port);
+
+    // Creación del socket del router para la escucha
+    int error = ksocketCreate(&listen_socket, router.port);
+    if (error < 0) {
+        pr_err("[ROUTER] Error al crear el socket de escucha\n");
+        return error;
+    }
+
+    // Creación de un hilo encargado de la escucha para el router
+    listen_thread = kthread_run(listening, NULL, "router_listen_thread");
+    if (IS_ERR(listen_thread)) {
+        pr_err("[ROUTER] Error al crear el hilo de escucha\n");
+        ksocketRelease(listen_socket);
+        return PTR_ERR(listen_thread);
+    }
+
+    return 0;
 }
 
 static int endRouterListen(ConfigRouter router) {
