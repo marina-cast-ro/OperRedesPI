@@ -43,4 +43,7 @@ static int initRouterListen(ConfigRouter router);
 // Router para de escuchar
 static void endRouterListen(ConfigRouter router);
 
+// Router envía mensaje inicial a los routers vecinos para indicar su activación y conexión
+static void sendInitialMsg(ConfigRouter router);
+
 #endif  // ROUTER_H

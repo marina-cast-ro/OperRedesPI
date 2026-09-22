@@ -124,3 +124,24 @@ static void endRouterListen(ConfigRouter router) {
     ksocketRelease(listen_socket);
     pr_info("[ROUTER] Finalización de escucha del router\n");
 }
+
+static void sendInitialMsg(ConfigRouter router) {
+    char message[MAX_BUFFER_SIZE];
+
+    // Configuración del mensaje de broadcast de acuerdo al protocolo
+    snprintf(message, sizeof(message), "ANNOUNCE|%s|%d|%s", router.ip, router.port, router.id);
+    pr_info("[ROUTER] Enviando saludo inicial a %d vecinos\n", router.num_peers);
+
+    // Envío del mensaje a cada vecino vía kernel
+    for (int i = 0; i < router.num_peers; i++) {
+        Peer peer = router.peers[i];
+
+        int error = ksocket_sendto(listen_socket, peer.ip, peer.port, message, strlen(message));
+
+        if (error < 0) {
+            pr_err("[ROUTER] Fallo al saludar a %s (%s:%d)\n", peer.id, peer.ip, peer.port);
+        } else {
+            pr_info("[ROUTER] Saludo enviado a %s (%s:%d)\n", peer.id, peer.ip, peer.port);
+        }
+    }
+}
