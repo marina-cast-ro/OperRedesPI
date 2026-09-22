@@ -1,4 +1,5 @@
 #include "frameRouting.h"
+#include "../pi-router/include/routingTable.h"
 
 #include <arpa/inet.h>
 
@@ -39,9 +40,12 @@ FrameRoutingResult registerAnnouncement(uint32_t announcedIp
         return FRAME_INVALID;
     }
 
-    // TODO: pedir al Modulo 2 que guarde la IP y el enlace.
-    // Acordar con los compañeros la funcion que se usara.
-    return FRAME_MEMORY_ERROR; // Temporal: falta conectar la memoria.
+    // Se le pide al Modulo 2 que guarde en la memoria simulada que a announcedIp
+    // se llega por el vecino que mando el anuncio.
+    if (saveRoute(announcedIp, incomingLink->nextHopIp, incomingLink->port) != 0) {
+        return FRAME_MEMORY_ERROR;
+    }
+    return FRAME_ROUTE_SAVED;
 }
 
 // MOdulo1 punto5, buscar por donde enviar el mensaje y reenviarlo.
@@ -53,10 +57,13 @@ FrameRoutingResult forwardMessage(uint32_t destinationIp, const void *frame
         return FRAME_INVALID;
     }
 
-    // TODO: consultar al Modulo 2 por donde llegar al destino.
-    // Acordar la funcion para obtener la IP y puerto del vecino.
+    // Se le pregunta al Modulo 2 por cual vecino se llega al destino.
+    RoutingLink link = {0};
+    if (findRoute(destinationIp, &link.nextHopIp, &link.port) != 0) {
+        return FRAME_NO_ROUTE;
+    }
 
-    // TODO usar esa respuesta para reenviar el paquete con syscallSendFrame.
+    // TODO usar link.nextHopIp y link.port para reenviar el paquete con syscallSendFrame.
 
-    return FRAME_MEMORY_ERROR; // Temporalllllllllllllllllllllllllllllllllllllll
+    return FRAME_SEND_ERROR; // Temporal: falta el envio.
 }
