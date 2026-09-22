@@ -152,6 +152,7 @@ kernel/drivers/tty/serial/serial_mctrl_gpio.ko
 kernel/drivers/tty/serial/kgdboc.ko
 kernel/drivers/tty/serdev/serdev.ko
 kernel/drivers/char/ttyprintk.ko
+kernel/drivers/char/virtio_console.ko
 kernel/drivers/char/hw_random/rng-core.ko
 kernel/drivers/char/hw_random/bcm2835-rng.ko
 kernel/drivers/char/hw_random/iproc-rng200.ko
@@ -171,7 +172,6 @@ kernel/drivers/mfd/rp1.ko
 kernel/drivers/scsi/scsi_mod.ko
 kernel/drivers/scsi/scsi_common.ko
 kernel/drivers/scsi/scsi_transport_iscsi.ko
-kernel/drivers/scsi/virtio_scsi.ko
 kernel/drivers/scsi/sd_mod.ko
 kernel/drivers/nvme/host/nvme-core.ko
 kernel/drivers/nvme/host/nvme.ko
