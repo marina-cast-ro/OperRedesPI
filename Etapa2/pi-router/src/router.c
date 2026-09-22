@@ -1,11 +1,20 @@
 #include "router.h"
+#include "routingTable.h"
+#include "protocol.h"
+
+static int listen_fd = -1;
+static pthread_t listen_thread;
+static volatile int running = 0;
 
 ConfigRouter initRouter(void) {
     ConfigRouter router;
+    memset(&router, 0, sizeof(ConfigRouter));
+
+    // Inicializar la MMU simulada de 256 bytes
+    virtualMemoryInit();
     
     // Lectura del archivo de configuración del router
     FILE *archivo = fopen("../config.txt", "r");
-
     if (!archivo) {
         printf("[ROUTER] Error al abrir el archivo de configuración <config.txt>");
         router.port = ERROR_ROUTER;
@@ -14,8 +23,8 @@ ConfigRouter initRouter(void) {
 
     // Contador de vecinos como informe general
     int peer_count = 0;
-
     char linea[256];
+    
     while (fgets(linea, sizeof(linea), archivo) != NULL) {
         // 1. Identificador del router propio
         if (strncmp(linea, "router_id:", 10) == 0) {

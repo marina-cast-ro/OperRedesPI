@@ -1,4 +1,4 @@
-router_id: R1
-puerto: 5000
-vecino: R2 127.0.0.1 5001
-vecino: R3 127.0.0.1 5002
+ip_local: 10.0.0.1
+puerto: 8080
+host_local: 10.0.0.10 eth0
+host_local: 10.0.0.11 eth1
