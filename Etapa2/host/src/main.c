@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     // 3. Anunciar la IP al router (ambos modos)
     if (greetAndMeet(routerIp, routerPort, myIp) < 0) {
         fprintf(stderr, "No se pudo anunciar la IP al router\n");
-=    }
+    }
 
     // 4. Bifurcación según el modo
     if (modoEnviar) {
