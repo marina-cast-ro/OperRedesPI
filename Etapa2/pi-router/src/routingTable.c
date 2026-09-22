@@ -1,10 +1,9 @@
 #include "routingTable.h"
 
-// Cada ruta ocupa 10 bytes seguidos en la memoria virtual:
-//   bytes 0-3: IP destino | bytes 4-7: IP del vecino | bytes 8-9: puerto del vecino
-// Una ruta con IP destino 0 está libre, porque la memoria arranca en ceros.
-#define ROUTE_SIZE      10
-#define ROUTE_CAPACITY  (MEMORY_SIZE / ROUTE_SIZE)  // 25 rutas
+// Cada ruta ocupa exactamente 8 bytes (1 página de la MMU):
+//   bytes 0-3: IP destino (uint32_t) | bytes 4-7: Nombre de interfaz ("eth0\0", "eth1\0")
+#define ROUTE_SIZE      8
+#define ROUTE_CAPACITY  (MEMORY_SIZE / ROUTE_SIZE)  // 32 rutas
 
 // Lee count bytes seguidos (count <= 4) y los junta en un número. El primero es el más alto
 static uint32_t readNumber(uint32_t address, int count) {
@@ -25,8 +24,8 @@ static void writeNumber(uint32_t address, uint32_t value, int count) {
     }
 }
 
-int saveRoute(uint32_t destinationIp, uint32_t neighborIp, uint16_t neighborPort) {
-    if (destinationIp == 0) {
+int saveRoute(uint32_t destinationIp, const char *interfaz) {
+    if (destinationIp == 0 || interfaz == NULL) {
         return -1;  // La IP 0 es la marca de ruta libre
     }
 
@@ -34,28 +33,43 @@ int saveRoute(uint32_t destinationIp, uint32_t neighborIp, uint16_t neighborPort
         uint32_t routeAddress = i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
-        // Se escribe en la primera ruta libre, o encima de la misma IP si ya estaba
+        // Se escribe en la primera ruta libre o actualiza si ya existe
         if (storedIp == 0 || storedIp == destinationIp) {
+            // Escribir IP (bytes 0-3)
             writeNumber(routeAddress, destinationIp, 4);
-            writeNumber(routeAddress + 4, neighborIp, 4);
-            writeNumber(routeAddress + 8, neighborPort, 2);
+            
+            // Escribir string de Interfaz byte a byte (bytes 4-7)
+            for (int j = 0; j < 4; j++) {
+                uint8_t c = (j < strlen(interfaz)) ? (uint8_t)interfaz[j] : 0;
+                mmuWriteByte(routeAddress + 4 + j, c);
+            }
             return 0;
         }
     }
     return -1;  // Tabla llena
 }
 
-int findRoute(uint32_t destinationIp, uint32_t *neighborIp, uint16_t *neighborPort) {
+int findRoute(uint32_t destinationIp, char *outInterfaz) {
+    if (destinationIp == 0 || outInterfaz == NULL) {
+        return -1;
+    }
+
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
         uint32_t routeAddress = i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
         if (storedIp == 0) {
-            return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
+            return -1;  // Fin de rutas guardadas
         }
+        
         if (storedIp == destinationIp) {
-            *neighborIp = readNumber(routeAddress + 4, 4);
-            *neighborPort = readNumber(routeAddress + 8, 2);
+            // Leer string de Interfaz byte a byte (bytes 4-7)
+            for (int j = 0; j < 4; j++) {
+                uint8_t byte = 0;
+                mmuReadByte(routeAddress + 4 + j, &byte);
+                outInterfaz[j] = (char)byte;
+            }
+            outInterfaz[4] = '\0'; // Asegurar fin de cadena
             return 0;
         }
     }
