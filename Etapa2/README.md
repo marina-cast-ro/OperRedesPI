@@ -21,7 +21,7 @@ Antes del martes 21 de septiembre (clase de PI).
 
 ### Módulo 1: Sockets y Redes (Dos personas)
 
-- [ ] Hacer que el enrutador lea su archivo de configuración (config.txt) al arrancar para saber a cuáles puertos y vecinos conectarse.
+- [x] Hacer que el enrutador lea su archivo de configuración (config.txt) al arrancar para saber a cuáles puertos y vecinos conectarse.
 - [ ] Dejar el enrutador listo y escuchando para recibir mensajes entrantes de los hosts o de otros enrutadores.
 - [ ] Enviar un mensaje inicial a los enrutadores vecinos (usando la syscallSendFrame) para avisar que ya está encendido y conectado.
 

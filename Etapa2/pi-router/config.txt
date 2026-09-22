@@ -1,0 +1,4 @@
+router_id: R1
+puerto: 5000
+vecino: R2 127.0.0.1 5001
+vecino: R3 127.0.0.1 5002
