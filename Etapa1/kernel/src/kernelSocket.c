@@ -10,7 +10,7 @@
 #include <linux/in.h>
 #include <linux/errno.h>
 
-int ksocketCreate(struct socket **socket_out, int port) {
+int ksocketCreate(struct socket **socket_out) {
     struct sockaddr_in local_addr;
     int error = sock_create_kern(&init_net, AF_INET, SOCK_DGRAM, IPPROTO_UDP, socket_out);
     if (error < 0) {
@@ -20,7 +20,7 @@ int ksocketCreate(struct socket **socket_out, int port) {
 
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family      = AF_INET;
-    local_addr.sin_port        = htons(port);
+    local_addr.sin_port        = htons(0);
     local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     error = kernel_bind(*socket_out, (struct sockaddr *)&local_addr, sizeof(local_addr));
