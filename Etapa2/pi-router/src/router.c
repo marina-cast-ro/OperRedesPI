@@ -85,7 +85,14 @@ static int listening(ConfigRouter router) {
         // Algún conjunto de bytes fueron recibidos
         if (received_bytes > 0) {
             pr_info("[ROUTER] Mensaje recibido (%d bytes): %s\n", received_bytes, buffer);
-            // TODO: Acá hacemos el envío al puerto destino correspondiente
+            // TODO integracion Modulo 1: pasar buffer y received_bytes a
+            // processReceivedFrame (Etapa2/include/frameRouting.h), junto con
+            // el enlace de retorno del emisor. Faltan las funciones de memoria,
+            // lectura de protocol.h y syscallSendFrame. Ver Etapa2/MODULO1.md.
+            // Antes hay que resolver la mezcla kernel/user space de esta
+            // escucha: frameRouting y la MMU actual trabajan en user space.
+            // ksocket_recvfrom no expone el emisor; sockets debe identificar
+            // su enlace/puerto de escucha, sin asumir que sea el puerto origen.
         } 
         // Error distinto a timeout, espera intencional para reintentar
         else if (received_bytes != -EAGAIN) {
