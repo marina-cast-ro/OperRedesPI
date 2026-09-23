@@ -34,9 +34,8 @@ int saveRoute(uint32_t destinationIp, uint32_t interfaceId) {
         uint32_t routeAddress = i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
-        // Se escribe en la primera ruta libre o actualiza si ya existe
+        // Se escribe en la primera ruta libre, o encima de la misma IP si ya estaba
         if (storedIp == 0 || storedIp == destinationIp) {
-            // Escribir IP (bytes 0-3)
             writeNumber(routeAddress, destinationIp, 4);
             writeNumber(routeAddress + 4, interfaceId, 4);
             return 0;
@@ -51,9 +50,8 @@ int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId) {
         uint32_t storedIp = readNumber(routeAddress, 4);
 
         if (storedIp == 0) {
-            return -1;  // Fin de rutas guardadas
+            return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
         }
-        
         if (storedIp == destinationIp) {
             *outInterfaceId = readNumber(routeAddress + 4, 4);
             return 0;
