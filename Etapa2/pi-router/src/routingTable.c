@@ -1,7 +1,8 @@
 #include "routingTable.h"
 
-// Cada ruta ocupa exactamente 8 bytes (1 página de la MMU):
-//   bytes 0-3: IP destino (uint32_t) | bytes 4-7: Nombre de interfaz ("eth0\0", "eth1\0")
+// Cada ruta ocupa 8 bytes seguidos en la memoria virtual, o sea una página entera de la MMU:
+//   bytes 0-3: IP destino | bytes 4-7: interfaz por la que se reenvía
+// Una ruta con IP destino 0 está libre, porque la memoria arranca en ceros.
 #define ROUTE_SIZE      8
 #define ROUTE_CAPACITY  (MEMORY_SIZE / ROUTE_SIZE)  // 32 rutas
 
@@ -16,7 +17,7 @@ static uint32_t readNumber(uint32_t address, int count) {
     return value;
 }
 
-// Escribe los count bytes más bajos de value (count <= 4). El más alto va primero
+// Escribe un número en count bytes seguidos (count <= 4). El último byte es el más bajo
 static void writeNumber(uint32_t address, uint32_t value, int count) {
     for (int i = count - 1; i >= 0; i--) {
         mmuWriteByte(address + i, value & 0xFF);
@@ -24,8 +25,8 @@ static void writeNumber(uint32_t address, uint32_t value, int count) {
     }
 }
 
-int saveRoute(uint32_t destinationIp, const char *interfaz) {
-    if (destinationIp == 0 || interfaz == NULL) {
+int saveRoute(uint32_t destinationIp, uint32_t interfaceId) {
+    if (destinationIp == 0) {
         return -1;  // La IP 0 es la marca de ruta libre
     }
 
@@ -37,23 +38,14 @@ int saveRoute(uint32_t destinationIp, const char *interfaz) {
         if (storedIp == 0 || storedIp == destinationIp) {
             // Escribir IP (bytes 0-3)
             writeNumber(routeAddress, destinationIp, 4);
-            
-            // Escribir string de Interfaz byte a byte (bytes 4-7)
-            for (int j = 0; j < 4; j++) {
-                uint8_t c = (j < strlen(interfaz)) ? (uint8_t)interfaz[j] : 0;
-                mmuWriteByte(routeAddress + 4 + j, c);
-            }
+            writeNumber(routeAddress + 4, interfaceId, 4);
             return 0;
         }
     }
     return -1;  // Tabla llena
 }
 
-int findRoute(uint32_t destinationIp, char *outInterfaz) {
-    if (destinationIp == 0 || outInterfaz == NULL) {
-        return -1;
-    }
-
+int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId) {
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
         uint32_t routeAddress = i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
@@ -63,15 +55,9 @@ int findRoute(uint32_t destinationIp, char *outInterfaz) {
         }
         
         if (storedIp == destinationIp) {
-            // Leer string de Interfaz byte a byte (bytes 4-7)
-            for (int j = 0; j < 4; j++) {
-                uint8_t byte = 0;
-                mmuReadByte(routeAddress + 4 + j, &byte);
-                outInterfaz[j] = (char)byte;
-            }
-            outInterfaz[4] = '\0'; // Asegurar fin de cadena
+            *outInterfaceId = readNumber(routeAddress + 4, 4);
             return 0;
         }
     }
-    return -1;  // Tabla llena y ninguna ruta era hacia destinationIp
+    return -1;  // No está en la tabla
 }

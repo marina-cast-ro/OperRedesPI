@@ -33,6 +33,7 @@ int initRouterListen(ConfigRouter router);
 // - Invoca decodeFrame() para parsear.
 // - Si es ANNOUNCE/ADVERTISE -> actualiza la MMU con saveRoute().
 // - Si es DATA -> consulta la MMU con findRoute() y reenvía.
+// === DESCOMENTAR CUANDO LA FUNCION DE HILO ESTE LISTA ===
 // void *listening(void *arg);
 
 // Detiene de forma limpia el hilo de escucha y cierra los sockets abiertos.
