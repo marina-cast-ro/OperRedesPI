@@ -35,9 +35,9 @@ Antes del jueves **24** de septiembre.
 
 **Archivos:** protocol.c, protocol.h
 
-- [ ] Decodificación: Programar decodeFrame(), asegurando limpiar caracteres residuales o saltos de línea (\n, \r, \0) del buffer del socket para no rechazar tramas válidas.
-- [ ] Codificación: Añadir la firma en el .h e implementar encodeFrame() para transformar el struct en el string exacto TIPO|IP|DATOS\n.
-- [ ] Conversión: Utilizar solamnte inet_pton e inet_ntop para manejar las IPs en binario de red (evitar htonl/ntohl).
+- [x] Decodificación: Programar decodeFrame(), asegurando limpiar caracteres residuales o saltos de línea (\n, \r, \0) del buffer del socket para no rechazar tramas válidas.
+- [x] Codificación: Añadir la firma en el .h e implementar encodeFrame() para transformar el struct en el string exacto TIPO|IP|DATOS\n.
+- [x] Conversión: Utilizar solamnte inet_pton e inet_ntop para manejar las IPs en binario de red (evitar htonl/ntohl).
 
 ---
 
