@@ -48,8 +48,8 @@ int initRouterListen(ConfigRouter router) {
         return -1;
     }
  
-    print("[ROUTER] Inicialización exitosa del router con el puerto %d\n", router.port);
-    return 0;
+    printf("[ROUTER] Inicialización exitosa del router con el puerto %d\n", router.port);
+	return 0;
 }
 
 static void addPeer(int fd) {
@@ -100,8 +100,7 @@ void *listening(void *arg) {
             if (errno == EINTR) 
                 continue;
             // Fallo común en el select()
-            perror("[ROUTER] Error en la función nativa select() para la vigilancia de 
-                descriptores de archivo (vecinos)");
+            perror("[ROUTER] Error en la función nativa select() para la vigilancia de descriptores de archivo (vecinos)");
             break;
         }
     
@@ -121,7 +120,7 @@ void *listening(void *arg) {
             if (new_FD >= 0) {
                 uint32_t ip_pc = peer_address.sin_addr.s_addr;
                 saveRoute(ip_pc, new_FD);
-                addpeerFd(new_FD);
+                addPeer(new_FD);
             }
         }
  
@@ -134,7 +133,7 @@ void *listening(void *arg) {
                 
                 // Conexion cerrada por el vecino o un error
                 if (n <= 0) {
-                    removepeerFd(fd);
+                    removePeer(fd);
                     close(fd);
                 } 
                 // Conexion establecida, se envía la trama para su procesamiento

@@ -10,9 +10,10 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include "../include/forwarding.h"  // Contiene a processPacket() para el procesamiento 
-                                    // de tramas de los sockets (FD) vecinos
-#include ""
+#include "forwarding.h"  // Contiene a processPacket() para el procesamiento 
+                         // de tramas de los sockets (FD) vecinos
+#include "mmu.h"
+#include "routingTable.h"
 
 #define ERROR_ROUTER      -1   // Bandera para indicar que el router contiene errores
 #define MAX_BUFFER_SIZE 1024   // Tamaño (carácteres) máximo de los datos a enviar/recibir

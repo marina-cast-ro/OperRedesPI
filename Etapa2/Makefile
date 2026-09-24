@@ -10,7 +10,7 @@ CC := gcc
 BUILDDIR := build
 
 # Fuentes del router (pi-router/src) y del Módulo 1 de Sebas (src)
-SRCS := $(wildcard pi-router/src/*.c) $(wildcard src/*.c)
+SRCS := $(wildcard pi-router/src/*.c) $(wildcard src/*.c) $(wildcard host/src/*.c)
 OBJS := $(patsubst %.c, $(BUILDDIR)/%.o, $(SRCS))
 
 # La prueba solo necesita la MMU, la RAM y la tabla de rutas
@@ -25,7 +25,7 @@ TEST := $(BUILDDIR)/testMemory
 
 # --- DEFINICIÓN DE BANDERAS DE COMPILACIÓN ---
 CFLAGS := -Wall -Wextra
-INCLUDES := -Ipi-router/include -Iinclude
+INCLUDES := -Ipi-router/include -Iinclude -Ihost/include
 LDFLAGS := -pthread
 
 .PHONY: all run test clean

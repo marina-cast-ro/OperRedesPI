@@ -7,9 +7,9 @@
 #define MAX_NEIGHBORS 16  // Cuántos vecinos puede tener este router como máximo
 
 // Falta implementar la función getNeighborSockets, que devuelve los sockets de los vecinos conectados.
-int getNeighborSockets(int *sockets, int maxSockets);
+//int getNeighborSockets(int *sockets, int maxSockets);
 // Retorna la IP propia del router, la que viene en config.txt
-uint32_t getLocalIp(void);
+//uint32_t getLocalIp(void);
 
 // La tabla de rutas vive en una sola memoria simulada, y el hilo de escucha la escribe mientras alguien más la puede estar leyendo. Este candado evita que se corrompa.
 static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -35,12 +35,12 @@ static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket)
     inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
     snprintf(message, sizeof(message), "%s%c%s", type, PROTOCOL_SEPARATOR, ipText);
 
-    int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
+    /*int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
     for (int i = 0; i < count; i++) {
         if (sockets[i] != exceptSocket) {
             sendFrame(sockets[i], message);
         }
-    }
+    }*/
 }
 
 // Aprende que a ip se llega por sockfd. Retorna 1 si la ruta era nueva, 0 si ya la conocíamos.
@@ -60,7 +60,8 @@ static int learnRoute(uint32_t ip, int sockfd) {
 }
 
 void sendInitialAnnounce(void) {
-    announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
+    //announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
+	printf("Aca va sendInitialAnnounce() pero le faltan cosas");
 }
 
 void sendInitialAdvertise(void) {
