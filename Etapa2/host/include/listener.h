@@ -9,5 +9,6 @@
 int keepListening(const char *routerIp, int routerPort);
 
 // Imprime en pantalla el mensaje recibido ya deserializado.
+void showMessage(const char* receivedMessage);
 
 #endif
