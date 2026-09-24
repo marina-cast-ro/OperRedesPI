@@ -1,6 +1,7 @@
 #include "listener.h"
 #include "sender.h"
 #include "router.h"
+#include "virtualMemory.h"
 #include "configParser.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +42,7 @@ static int versionSend(int argc, char *argv[]){
     const char *destIp = argv[4];
     const char *message = argv[5];
 
-    if (sendMessage(routerIp, routerPort, destIp, message) != 0){
+    if(sendMessage(routerIp, routerPort, destIp, message) != 0){
         fprintf(stderr, "Error al enviar el mensaje\n");
         return EXIT_FAILURE;
     }
@@ -53,6 +54,8 @@ static int versionRouter(int argc, char *argv[]){
         fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", argv[0]);        
         return EXIT_FAILURE;
     }
+    initMMU();
+    virtualMemoryInit();
 
     const char *configPath = argv[2];
 
@@ -72,6 +75,8 @@ static int versionRouter(int argc, char *argv[]){
         sleep(1);//esto permite mantener el proceso principal vivo, mientras el hilo escucha
     }
 
+    //FALTA CERRAR ROUTER
+    //endRouterListen(router);
     return EXIT_SUCCESS;
 }
 
