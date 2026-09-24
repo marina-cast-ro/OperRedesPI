@@ -10,22 +10,22 @@ CC := gcc
 BUILDDIR := build
 
 # Fuentes del router (pi-router/src) y del Módulo 1 de Sebas (src)
-SRCS := $(wildcard pi-router/src/*.c) $(wildcard src/*.c)
+SRCS := main.c $(wildcard host/src/*.c) $(wildcard router/src/*.c)
 OBJS := $(patsubst %.c, $(BUILDDIR)/%.o, $(SRCS))
 
-# La prueba solo necesita la MMU, la RAM y la tabla de rutas
-TEST_SRCS := pi-router/src/mmu.c pi-router/src/virtualMemory.c pi-router/src/routingTable.c pi-router/tests/testMemory.c
+# Prueba unitaria
+TEST_SRCS := router/src/mmu.c router/src/virtualMemory.c router/src/routingTable.c router/tests/testMemory.c
 TEST_OBJS := $(patsubst %.c, $(BUILDDIR)/%.o, $(TEST_SRCS))
 
 DEPS := $(sort $(OBJS:.o=.d) $(TEST_OBJS:.o=.d))
 
 # --- DEFINICIÓN DE TARGETS ---
-TARGET := $(BUILDDIR)/router
+TARGET := $(BUILDDIR)/routing
 TEST := $(BUILDDIR)/testMemory
 
-# --- DEFINICIÓN DE BANDERAS DE COMPILACIÓN ---
-CFLAGS := -Wall -Wextra
-INCLUDES := -Ipi-router/include -Iinclude
+# --- BANDERAS DE COMPILACIÓN ---
+CFLAGS := -Wall -Wextra -MMD
+INCLUDES := -I. -Ihost/include -Irouter/include
 LDFLAGS := -pthread
 
 .PHONY: all run test clean
@@ -33,9 +33,9 @@ LDFLAGS := -pthread
 # --- TARGETS ---
 all: $(TARGET)
 
-# El router abre ../config.txt, por eso se corre desde pi-router/src
+# Ejecución desde host/src para conservar la ruta relativa del config
 run: $(TARGET)
-	cd pi-router/src && ../../$(TARGET)
+	./$(TARGET)
 
 test: $(TEST)
 	./$(TEST)
@@ -50,7 +50,7 @@ $(TEST): $(TEST_OBJS)
 # Compilación de cada .c a su .o, dentro de build/ con la misma ruta de carpetas
 $(BUILDDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDES) -MMD -c $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Inclusión de dependencias generadas automáticamente
 -include $(DEPS)
