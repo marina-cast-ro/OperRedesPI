@@ -63,6 +63,24 @@ void sendInitialAnnounce(void) {
     announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
 }
 
+void sendInitialAdvertise(void) {
+    uint32_t hostIp;
+    int index = 0;
+
+    // Al arrancar, lo único que hay en la tabla son los hosts locales que precargó configParser
+    while (1) {
+        pthread_mutex_lock(&tableMutex);
+        int found = getRouteIp(index, &hostIp);
+        pthread_mutex_unlock(&tableMutex);
+
+        if (found != 0) {
+            return;
+        }
+        announceToNeighbors(PROTOCOL_ADVERTISE, hostIp, -1);
+        index++;
+    }
+}
+
 void processPacket(const char *buffer, int sockfd) {
     uint32_t destinationSocket = 0;
     RoutingMessage message;
