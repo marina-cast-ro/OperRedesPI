@@ -1,6 +1,7 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include "../include/forwarding.h"  // Contiene a processPacket() para el procesamiento 
+                                    // de tramas de los sockets (FD) vecinos
+#include ""
 
 #define ERROR_ROUTER      -1   // Bandera para indicar que el router contiene errores
 #define MAX_BUFFER_SIZE 1024   // Tamaño (carácteres) máximo de los datos a enviar/recibir
@@ -25,17 +29,22 @@ static int          socket_fd = -1;  // Socket para identificar una sesión acti
 static pthread_t    listen_thread;   // Hilo de escucha del router
 static volatile int running = 0;     // Estado (sensible) del router
 
-static int peers_fds[MAX_PEERS];     // Lista para registrar a los vecinos
+static int peers_fds[MAX_PEERS];     // Lista de registro de los vecinos activos actuales
 
 // Inicia el socket de escucha en router.port y lanza el hilo pasivo en segundo plano.
 // Retorna 0 si el servidor arrancó bien, -1 en caso de error.
 int initRouterListen(ConfigRouter router);
 
+// Función interna: El router registra un vecino entrante y estable
+static void addPeer(int fd);
+
+// Función interna: El router descarta un vecino que ya cumplió su función
+static void removePeer(int fd);
+
 // Función ejecutada por el hilo de escucha (compatible con pthread_create):
 // - Ejecuta accept(): al conectar el Host/listener, extrae su IP y actualiza la MMU con saveRoute(ip_pc, client_fd).
 // - Lee tramas entrantes desde los sockets y las pasa a processPacket(buffer, sockfd).
-// === DESCOMENTAR CUANDO LA FUNCION DE HILO ESTE LISTA ===
-// void *listening(void *arg);
+void *listening(void *arg);
 
 // Detiene de forma limpia el hilo de escucha y cierra los sockets abiertos.
 void endRouterListen(ConfigRouter router);
