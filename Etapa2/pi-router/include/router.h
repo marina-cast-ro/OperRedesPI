@@ -12,6 +12,7 @@
 
 #define ERROR_ROUTER      -1   // Bandera para indicar que el router contiene errores
 #define MAX_BUFFER_SIZE 1024   // Tamaño (carácteres) máximo de los datos a enviar/recibir
+#define MAX_PEERS         24   // Máximo de vecinos (basado en las personas aka I.P.'s del aula)
 
 // Struct de datos atributos del router
 typedef struct {
@@ -20,9 +21,11 @@ typedef struct {
 } ConfigRouter;
 
 // Variables de estado del router
-static int          socket_fd = -1;  // Socket del router
+static int          socket_fd = -1;  // Socket para identificar una sesión activa
 static pthread_t    listen_thread;   // Hilo de escucha del router
 static volatile int running = 0;     // Estado (sensible) del router
+
+static int peers_fds[MAX_PEERS];     // Lista para registrar a los vecinos
 
 // Inicia el socket de escucha en router.port y lanza el hilo pasivo en segundo plano.
 // Retorna 0 si el servidor arrancó bien, -1 en caso de error.

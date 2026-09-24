@@ -184,7 +184,7 @@ void *listening(void *arg) {
     printf("[ROUTER] Escuchando...\n");
  
     // Mantiene la escucha activa
-    while (true) {
+    while (running) {
         // Recibimiento de bytes de vecinos (si es que alguno manda)
         memset(buffer, 0, MAX_BUFFER_SIZE);
         int bytes = recvfrom(sock_fd, buffer, MAX_BUFFER_SIZE - 1, 0, (struct sockaddr *)&sender, &sender_len);
@@ -200,14 +200,6 @@ void *listening(void *arg) {
     return NULL;
 }
 
-static void endRouterListen(ConfigRouter router) {
-    if (listen_thread) {
-        kthread_stop(listen_thread);
-    }
-
-    ksocketRelease(listen_socket);
-    pr_info("[ROUTER] Finalización de escucha del router\n");
-}*/
 
 //static void sendInitialMsg(ConfigRouter router) {
 void sendInitialMsg(ConfigRouter router) {
@@ -264,4 +256,27 @@ pthread_t activateRouter(void) {
     sendInitialMsg(router);
  
     return listener_thread;
+}
+
+void endRouterListen(ConfigRouter router) {
+    (void)router;
+    
+    running = 0;
+    pthread_join(listen_thread, NULL);
+
+    // Se cierran los descriptores de archivos de cada vecino
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (client_fds[i] != -1) {
+            close(client_fds[i]);
+            client_fds[i] = -1;
+        }
+    }
+ 
+    // Socket aún activo, procede a cerrarse y restablecer su valor
+    if (socket_fd != -1) {
+        close(socket_fd);
+        socket_fd = -1;
+    }
+
+    printf("[ROUTER] Finalización de escucha del router\n");
 }
