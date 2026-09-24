@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "listener.h"
 #include "sender.h"
 #include "router.h"
@@ -7,17 +9,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+
+// Variable global atómica para controlar el ciclo de vida del router de forma segura entre hilos/señales
+static volatile sig_atomic_t keepRunning = 1;
+
+static void handleSigint(int sig) {
+    (void)sig;
+    keepRunning = 0;
+}
 
 static void printUsage(const char *programName){
     fprintf(stderr, "Uso:\n");
-    fprintf(stderr, "  %s --listen <routerIp> <routerPort>\n", programName);
+    fprintf(stderr, "  %s --listen <routerIp> <routerPort> <hostLogicalIp>\n", programName);
     fprintf(stderr, "  %s --send <routerIp> <routerPort> <destIp> <mensaje>\n", programName);
     fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", programName);
 }
 
 static int versionListen(int argc, char *argv[]){
     if (argc < 4 || argc > 5){
-        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", argv[0]);
+        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> <hostLogicalIp]>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -56,6 +67,13 @@ static int versionRouter(int argc, char *argv[]){
         fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", argv[0]);        
         return EXIT_FAILURE;
     }
+
+    // Registrar la captura de Ctrl+C (SIGINT)
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handleSigint;
+    sigaction(SIGINT, &sa, NULL);
+
     initMMU();
     virtualMemoryInit();
 

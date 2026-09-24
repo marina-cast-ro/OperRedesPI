@@ -57,7 +57,6 @@ int keepListening(const char *routerIp, int routerPort, const char *hostLogicalI
 
     while(flag){
         char buffer[LISTENER_BUFFER_SIZE];
-        RoutingMessage msg; 
 
         // Única lectura por iteración usando actualSocketFd
         ssize_t receivedBytes = recv(actualSocketFd, buffer, sizeof(buffer) - 1, 0);
@@ -66,17 +65,26 @@ int keepListening(const char *routerIp, int routerPort, const char *hostLogicalI
             printf("[HOST LISTENER] Conexión cerrada por el router.\n");
             flag = 0; 
         }
-        else{
+        else {
             buffer[receivedBytes] = '\0';
 
-            // Muestra en pantalla los bytes crudos leídos del socket
-            printf("[HOST LISTENER] Bytes recibidos (%zd bytes): [%s]\n", receivedBytes, buffer);
-            
-            // Decodifica la trama entrante ("DATA|IP|MENSAJE\n")
-            if(decodeFrame(buffer, (size_t)receivedBytes, &msg) == 0){
-                processMessage(&msg);
-            } else {
-                printf("[HOST LISTENER] Error: decodeFrame() no pudo interpretar la trama.\n");
+            char *line_start = buffer;
+            char *line_end;
+
+            while ((line_end = strchr(line_start, '\n')) != NULL) {
+                *line_end = '\0';
+                size_t frame_len = (size_t)(line_end - line_start);
+
+                if (frame_len > 0) {
+                    RoutingMessage msg;
+                    if (decodeFrame(line_start, frame_len, &msg) == 0) {
+                        if (msg.type == ROUTING_DATA) {
+                            printf("[HOST LISTENER] Bytes recibidos (%zd bytes): [%s]\n", frame_len, line_start);
+                            processMessage(&msg);
+                        }
+                    }
+                }
+                line_start = line_end + 1;
             }
         }
     }

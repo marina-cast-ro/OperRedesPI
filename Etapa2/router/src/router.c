@@ -181,7 +181,22 @@ void *listening(void *arg) {
                 // Conexion establecida, se envía la trama para su procesamiento
                 else {
                     buffer[n] = '\0';
-                    processPacket(buffer, (size_t)n, fd);
+
+                    // --- PROCESAMIENTO POR DELIMITADOR DE TRAMA (\n) ---
+                    char *line_start = buffer;
+                    char *line_end;
+
+                    // Procesa cada trama individual separada por '\n' dentro del buffer leído
+                    while ((line_end = strchr(line_start, '\n')) != NULL) {
+                        *line_end = '\0'; // Corta la trama actual reemplazando el \n por \0
+                        
+                        size_t frame_len = (size_t)(line_end - line_start);
+                        if (frame_len > 0) {
+                            processPacket(line_start, frame_len, fd);
+                        }
+
+                        line_start = line_end + 1; // Avanza el puntero a la siguiente trama
+                    }
                 }
             }
         }
