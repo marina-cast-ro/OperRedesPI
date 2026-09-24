@@ -2,73 +2,74 @@
 #include "protocol.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 
-//Parte de las funciones de este archivo se obtuvo de clientUser.c
-static int sendAck(int actualSocketFd, const struct sockaddr_in *senderAddress
-    ,socklen_t senderLength, uint8_t nextExpectedSequence) {
+#define LISTENER_BUFFER_SIZE 1024
 
-    Header ack;
-    memset(&ack, 0, sizeof(ack));
-    ack.type = PROTOCOL_FRAME_ACK;
-    ack.seqNumber = nextExpectedSequence;
-    ack.payloadLength = htons(0);
-
-    // Manda el mensaje de ACK por un socket
-    return sendto(actualSocketFd, &ack, sizeof(ack), 0
-        ,(const struct sockaddr *)senderAddress, senderLength);
+static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort){
+    memset(routerAddress, 0, sizeof(*routerAddress)); //le pasamos como parametro la ip del router
+    routerAddress->sin_family = AF_INET;
+    routerAddress->sin_port = htons(routerPort);
 }
 
-int keepListening(int localPort){
-    int actualSocketFd = socket(AF_INET, SOCK_DGRAM, 0);
+static void processMessage(RoutingMessage *msg){
+    if(msg->type == ROUTING_DATA){
+        char dataToShow[msg->dataLength + 1];
+        memcpy(dataToShow, msg->data, msg->dataLength);
+        dataToShow[msg->dataLength] = '\0'; //le agregamos caracter nulo al final
+        showMessage(dataToShow);
+    }
+}
+
+int keepListening(const char *routerIp, int routerPort){
+    int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (actualSocketFd < 0) {
         perror("socket");
         return -1;
     }
-            //se establece informacion del socket
-        struct sockaddr_in localAddress;
-        memset(&localAddress, 0, sizeof(localAddress));
-        localAddress.sin_family = AF_INET;
-        localAddress.sin_addr.s_addr = htonl(INADDR_ANY); // acepta paquetes de cualquier interfaz de red
-        localAddress.sin_port = htons(localPort);
+    //se establece informacion del socket
+    struct sockaddr_in routerAddress;
+    initRouterAddress(&routerAddress, routerPort);
 
-        // Reservamos el puerto para este socket.
-        if (bind(actualSocketFd, (struct sockaddr *)&localAddress, sizeof(localAddress)) < 0) {
-            perror("Error al reservar el puerto para el socket.(bind)");
-            close(actualSocketFd);
-            return -1;
+    //verificamos si la direccion IP es valida. 
+    if(inet_pton(AF_INET, routerIp, &routerAddress.sin_addr) != 1){
+        fprintf(stderr, "Dirección IP inválida: %s\n", routerIp);
+        close(actualSocketFd);
+        return -1;
+    }
+
+    //verificamos si el puerto es correcto
+    if(connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress))< 0){
+        perror("connect");
+        close(actualSocketFd);
+        return -1;
+    }
+
+    printf("Se ha conectado al router exitosamente: %s:%d\n", routerIp, routerPort);
+
+    int flag = 1;
+
+    while(flag){
+        char buffer[LISTENER_BUFFER_SIZE];
+        RoutingMessage msg; 
+
+        ssize_t receivedBytes = recv(actualSocketFd, buffer, sizeof(buffer), 0);        
+        if(receivedBytes <= 0){
+            flag = 0; //si la conexion se cierra salimos del ciclo
         }
-
-        printf("Escuchando en puerto %d\n", localPort);
-        uint8_t expectedSequence = 1;
-
-        while(1){
-        Frame frame;
-        struct sockaddr_in senderAddress;
-        socklen_t senderLength = sizeof(senderAddress);
-
-        ssize_t receivedBytes = recvfrom(actualSocketFd, &frame, sizeof(frame), 0, (struct sockaddr *)&senderAddress, &senderLength);
-        if (receivedBytes < (ssize_t)sizeof(Header)) continue;
-
-        uint16_t payloadLength = ntohs(frame.header.payloadLength);
-        if (payloadLength > MAX_PAYLOAD_SIZE || sizeof(Header) + payloadLength != (size_t)receivedBytes) continue;
-
-        if (frame.header.type == PROTOCOL_FRAME_END) {
-            expectedSequence = 1 - expectedSequence;
-            sendAck(actualSocketFd, &senderAddress, senderLength, expectedSequence);
-            continue;
+        else{
+            if(decodeFrame(buffer, receivedBytes, &msg) == 0){
+                processMessage(&msg);
+            }
         }
+    }
+        close(actualSocketFd);
+        return 0;
+}
 
-        if (frame.header.type != PROTOCOL_FRAME_DATA) continue;
-
-        if (frame.header.seqNumber == expectedSequence) {
-            printf("[Mensaje] %.*s\n", payloadLength, frame.payload);
-            expectedSequence = 1 - expectedSequence;
-        }
-
-        sendAck(actualSocketFd, &senderAddress, senderLength, expectedSequence);
-        }
-            close(actualSocketFd);
-            return 0;
+void showMessage(const char* receivedMessage){
+    printf("[MENSAJE]: %s\n", receivedMessage);
 }
