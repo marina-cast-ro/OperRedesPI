@@ -1,13 +1,28 @@
-#include "mmu.h"
-#include "router.h"
+#include <stdio.h>
+#include <string.h>
+#include "../include/mmu.h"
+#include "../include/virtualMemory.h"
+#include "../include/configParser.h"
+#include "../include/router.h"
+#include "../include/forwarding.h"
+#include "../../host/include/listener.h"
+#include "../../host/include/sender.h"
 
 // --- MAIN DE PRUEBAS PARA MMU ---
-int main(void) {
+int test_main(void) {
 	initMMU();
     
-    ConfigRouter router = initRouter();
-    if (router.port == ERROR_ROUTER) 
-        return 0;
+    // 1. Inicializar la memoria física y virtual ANTES de cualquier cosa
+	initMMU();
+	virtualMemoryInit();
+
+	// 2. Leer config y precargar interfaces virtuales en la MMU
+	ConfigRouter routerConfig = parseConfigAndPreload("config.txt");
+
+	// 3. Levantar la red: Inicia el hilo que hace accept() y recibe datos
+	if (initRouterListen(routerConfig) == ERROR_ROUTER) {
+		return -1;
+	}
 
 	printf("--- 1. Llenando la TLB (Páginas 0, 1, 2, 3) ---\n");
     translateAddress(0); // VPN 0 -> Miss (TLB[0])

@@ -5,8 +5,9 @@
 #include "configParser.h"
 #include "router.h"
 #include "forwarding.h"
-#include "listener.h"
-#include "sender.h"
+#include "../../host/include/listener.h"
+#include "../../host/include/sender.h"
+
 
 // --- MAIN PRINCIPAL DE EJEMPLO ---
 int main(int argc, char *argv[]) {
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
         }
 
         // 4. Propagación inicial: Ya con la red activa y la MMU precargada, avisar a vecinos
-        sendInitialAnnounce();
+        //sendInitialAnnounce();  // Faltan cosas de esta función
         sendInitialAdvertise();
 
         // 5. Mantener vivo el programa principal (el router corre en un hilo secundario)

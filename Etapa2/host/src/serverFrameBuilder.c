@@ -39,7 +39,8 @@ int sendFrameSockets(const char *ip, int port, const uint8_t *frameBuffer, size_
         return -1; // Error de parámetros
     }
 
-    long result = syscall(SYS_UDP_RELIABLE, ip, port, frameBuffer, frameSize);
-    return (result == 0) ? 0 : -1;
+    //long result = syscall(SYS_UDP_RELIABLE, ip, port, frameBuffer, frameSize);
+    long result = 0;
+	return (result == 0) ? 0 : -1;
 
 }

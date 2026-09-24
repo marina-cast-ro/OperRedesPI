@@ -1,6 +1,9 @@
 #ifndef FRAMEBUILDER_H
 #define FRAMEBUILDER_H
 
+#include <string.h>
+#include <arpa/inet.h>
+#include <sys/syscall.h>
 #include "protocol.h"
 
 // --- CONSTRUIR TRAMAS ---
