@@ -34,24 +34,21 @@ static void sendFrame(int socket, const char *message) {
 
 // Arma un mensaje con una IP, y se lo manda a todos los vecinos menos por exceptSocket, que es por donde llegó. Con exceptSocket en -1 se lo manda a todos
 static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket) {
-    (void)exceptSocket; // Silencia el aviso de parámetro no usado
     char message[MAX_BUFFER_SIZE];
     char ipText[INET_ADDRSTRLEN];
-    //int sockets[MAX_NEIGHBORS];
+    int sockets[MAX_NEIGHBORS];
     struct in_addr address;
 
     address.s_addr = ip;
     inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
     snprintf(message, sizeof(message), "%s%c%s", type, PROTOCOL_SEPARATOR, ipText);
 
-    /* Lógica temporal desactivada */
-
-    /*int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
+    int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
     for (int i = 0; i < count; i++) {
         if (sockets[i] != exceptSocket) {
             sendFrame(sockets[i], message);
         }
-    }*/
+    }
 }
 
 // Aprende que a ip se llega por sockfd. Retorna 1 si la ruta era nueva, 0 si ya la conocíamos.
@@ -93,12 +90,12 @@ void sendInitialAdvertise(void) {
     }
 }
 
-void processPacket(const char *buffer, int sockfd) {
+void processPacket(const char *buffer, size_t length, int sockfd) {
     uint32_t destinationSocket = 0;
     RoutingMessage message;
     int found;
 
-    if (decodeFrame(buffer, strlen(buffer), &message) != 0) {
+    if (decodeFrame(buffer, length, &message) != 0) {
         return;  // El mensaje no es válido, se descarta
     }
 

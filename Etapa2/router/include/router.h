@@ -25,7 +25,10 @@ typedef struct {
     int port;           // Puerto de entrada de datos al router
 } ConfigRouter;
 
-
+// Devuelve los sockets de los vecinos conectados.
+// Retorna la cantidad de sockets devueltos.
+// Si sockets es NULL o maxSockets es 0 o negativo, retorna 0.
+int getNeighborSockets(int *sockets, int maxSockets);
 
 // Inicia el socket de escucha en router.port y lanza el hilo pasivo en segundo plano.
 // Retorna 0 si el servidor arrancó bien, -1 en caso de error.

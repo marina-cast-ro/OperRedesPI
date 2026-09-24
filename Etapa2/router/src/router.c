@@ -9,6 +9,28 @@ static volatile int running = 0;     // Estado (sensible) del router
 
 static int peers_fds[MAX_PEERS];     // Lista de registro de los vecinos activos actuales
 
+static void initPeers(void) {
+    for (int i = 0; i < MAX_PEERS; i++) {
+        peers_fds[i] = -1;
+    }
+}
+
+int getNeighborSockets(int *sockets, int maxSockets) {
+    if (sockets == NULL || maxSockets <= 0) {
+        return 0;
+    }
+
+    int count = 0;
+    for (int i = 0; i < MAX_PEERS && count < maxSockets; i++) {
+        if (peers_fds[i] != -1) {
+            sockets[count] = peers_fds[i];
+            count++;
+        }
+    }
+
+    return count;
+}
+
 // Función interna: El router registra un vecino entrante y estable
 static void addPeer(int fd);
 
@@ -16,6 +38,8 @@ static void addPeer(int fd);
 static void removePeer(int fd);
 
 int initRouterListen(ConfigRouter router) {
+    initPeers();
+
     // Creación del socket TCP del router para la escucha
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
@@ -31,9 +55,9 @@ int initRouterListen(ConfigRouter router) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = router.localIp;
+    addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons((uint16_t)router.port);
- 
+
     // Bindeo del socket 
     if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind");
@@ -41,7 +65,7 @@ int initRouterListen(ConfigRouter router) {
         socket_fd = -1;
         return -1;
     }
- 
+
     // Escucha del socket
     if (listen(socket_fd, 10) < 0) {
         perror("listen");
@@ -49,9 +73,9 @@ int initRouterListen(ConfigRouter router) {
         socket_fd = -1;
         return -1;
     }
- 
+
     running = 1;
- 
+
     // Creación del hilo de escucha
     if (pthread_create(&listen_thread, NULL, listening, NULL) != 0) {
         perror("pthread_create");
@@ -60,7 +84,7 @@ int initRouterListen(ConfigRouter router) {
         running = 0;
         return -1;
     }
- 
+
     printf("[ROUTER] Inicialización exitosa del router con el puerto %d\n", router.port);
 	return 0;
 }
@@ -73,7 +97,7 @@ static void addPeer(int fd) {
         }
     }
 }
- 
+
 static void removePeer(int fd) {
     for (int i = 0; i < MAX_PEERS; i++) {
         if (peers_fds[i] == fd) {
@@ -86,7 +110,7 @@ static void removePeer(int fd) {
 void *listening(void *arg) {
     (void)arg;
     char buffer[MAX_BUFFER_SIZE];
- 
+
     while (running) {
         fd_set read_fds;
         FD_ZERO(&read_fds);            // Inicializa y vacía a los descriptores de archivo
@@ -102,12 +126,12 @@ void *listening(void *arg) {
                     max_fd = peers_fds[i];
             }
         }
- 
+
         // Timeout de 1s para revisar running constantemente
         struct timeval tv = {1, 0};
         // Vigila los FDs y avisa si hay alguno(s) con datos por leer
         int ret = select(max_fd + 1, &read_fds, NULL, NULL, &tv);
- 
+
         if (ret < 0) {
             // Fallo en la syscall interna del select()
             if (errno == EINTR) 
@@ -119,26 +143,24 @@ void *listening(void *arg) {
     
         // Timeout alcanzado
         if (ret == 0) continue;
- 
+
         // Nueva conexion entrante
         if (FD_ISSET(socket_fd, &read_fds)) {
-            // Configuración de los datos para aceptar al FD
             struct sockaddr_in peer_address;
             socklen_t len = sizeof(peer_address);
-            // Aceptación del nodo vecino entrante
             int new_FD = accept(socket_fd, (struct sockaddr *)&peer_address, &len);
             
-            // Aceptación exitosa
-            // Se envía la info a la MMU + Guardado del nuevo vecino
             if (new_FD >= 0) {
                 uint32_t ip_pc = peer_address.sin_addr.s_addr;
-                if (new_FD >= 0) {
-                    saveRoute(ip_pc, (uint32_t)new_FD);
-                }
+                
+                // Guarda en la tabla de rutas la IP de origen asociada a este nuevo socket
+                saveRoute(ip_pc, (uint32_t)new_FD);
+                
+                // Registra el socket en la lista de vecinos para select()
                 addPeer(new_FD);
             }
         }
- 
+
         // Datos entrantes en vecinos ya conectados
         for (int i = 0; i < MAX_PEERS; i++) {
             int fd = peers_fds[i];
@@ -154,7 +176,7 @@ void *listening(void *arg) {
                 // Conexion establecida, se envía la trama para su procesamiento
                 else {
                     buffer[n] = '\0';
-                    processPacket(buffer, fd);
+                    processPacket(buffer, (size_t)n, fd);
                 }
             }
         }

@@ -39,7 +39,7 @@ static int buildFrame(const char *destIp, const char *message, RoutingMessage *m
 int sendMessage(const char *routerIp, int routerPort, const char *destIp, const char *message){
     int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (actualSocketFd < 0) {
-        perror("socket");
+        perror("[SENDER] socket");
         return -1;
     }
     //se establece informacion del socket
@@ -47,14 +47,14 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
     initRouterAddress(&routerAddress, routerPort);
 
     if(inet_pton(AF_INET, routerIp, &routerAddress.sin_addr) != 1){
-        fprintf(stderr, "Dirección IP inválida: %s\n", routerIp);
+        fprintf(stderr, "[SENDER] Dirección IP del router inválida: %s\n", routerIp);
         close(actualSocketFd);
         return -1;
     }
 
     //verificamos si el puerto es correcto
     if(connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress))< 0){
-        perror("connect");
+        perror("[SENDER] connect");
         close(actualSocketFd);
         return -1;
     }
@@ -62,6 +62,7 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
     RoutingMessage msg; //el mensaje que vamos a enviar
     
     if(buildFrame(destIp, message, &msg)){//cargamos en msg la informacion del mensaje
+        fprintf(stderr, "[SENDER] Error en buildFrame con destIp: %s\n", destIp);
         close(actualSocketFd);
         return -1; //significa que el destIP es invalido
     } 
@@ -70,12 +71,13 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
     // Declara encodedBytes y guarda el retorno de encodeFrame
     int encodedBytes = encodeFrame(&msg, buffer, sizeof(buffer));
     if(encodedBytes <= 0){
+        fprintf(stderr, "[SENDER] Error en encodeFrame\n");
         close(actualSocketFd);        
         return -1;
     }
     ssize_t dataSent = send(actualSocketFd, buffer, (size_t)encodedBytes, 0);
     if(dataSent < 0){
-        perror("send");
+        perror("[SENDER] send");
         close(actualSocketFd);
         return -1;   
     }
