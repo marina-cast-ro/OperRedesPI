@@ -69,3 +69,21 @@ uint32_t translateAddress(const uint32_t virtAddress) {
 		return MMU_ERROR;
 	}
 }
+
+void removeRouteBySocket(uint32_t socketFd) {
+    // 1. Limpiar en la Page Table
+    for (size_t i = 0; i < NUM_PAGES; i++) {
+        if (pageTable[i].valid && pageTable[i].pfn == (uint8_t)socketFd) {
+            pageTable[i].valid = false;
+            printf("[MMU] Pagina %zu invalidada en Page Table para socket %u\n", i, socketFd);
+        }
+    }
+
+    // 2. Limpiar en la TLB (si estaba en caché)
+    for (size_t i = 0; i < TLB_SIZE; i++) {
+        if (tlb[i].valid && tlb[i].pfn == (uint8_t)socketFd) {
+            tlb[i].valid = false;
+            printf("[MMU] Entrada %zu invalidada en TLB para socket %u\n", i, socketFd);
+        }
+    }
+}

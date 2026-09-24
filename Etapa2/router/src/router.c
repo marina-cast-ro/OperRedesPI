@@ -170,9 +170,14 @@ void *listening(void *arg) {
                 
                 // Conexion cerrada por el vecino o un error
                 if (n <= 0) {
+                    printf("[ROUTER] Cliente/Listener desconectado en socket %d\n", fd);
+                    
+                    // Invalida la traducción asociada a este descriptor
+                    removeRouteBySocket((uint32_t)fd);
+                    
                     removePeer(fd);
                     close(fd);
-                } 
+                }
                 // Conexion establecida, se envía la trama para su procesamiento
                 else {
                     buffer[n] = '\0';

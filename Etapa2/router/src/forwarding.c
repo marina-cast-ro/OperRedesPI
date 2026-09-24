@@ -56,13 +56,19 @@ static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket)
 // La búsqueda y el guardado van dentro del mismo candado para que dos hilos no crean los dos que la ruta es nueva y la propaguen dos veces
 static int learnRoute(uint32_t ip, int sockfd) {
     uint32_t knownSocket = 0;
-    int isNew;
+    int isNew = 0;
 
     pthread_mutex_lock(&tableMutex);
-    isNew = (findRoute(ip, &knownSocket) != 0);
-    if (isNew) {
+    
+    // findRoute retorna 0 si la encontró
+    int found = (findRoute(ip, &knownSocket) == 0);
+
+    // Si no existía, O si existía pero el socket cambió/era una interfaz estática (ej. 1 != 4)
+    if (!found || knownSocket != (uint32_t)sockfd) {
         saveRoute(ip, (uint32_t)sockfd);
+        isNew = 1; // Para que avise a los vecinos si es un nuevo aprendizaje/actualización
     }
+    
     pthread_mutex_unlock(&tableMutex);
 
     return isNew;

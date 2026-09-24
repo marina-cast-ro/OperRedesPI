@@ -32,6 +32,8 @@ typedef struct {
 // Retorna la dirección física traducida, o MMU_ERROR (0xFFFFFFFF) si hay Page Fault o VPN fuera de rango
 uint32_t translateAddress(const uint32_t virtAddress);
 
+void removeRouteBySocket(uint32_t socketFd);
+
 // Inicializa la Page Table en 1:1 y la TLB totalmente vacía/inválida
 void initMMU(void);
 

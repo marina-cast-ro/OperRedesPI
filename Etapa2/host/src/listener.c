@@ -24,7 +24,7 @@ static void processMessage(RoutingMessage *msg){
     }
 }
 
-int keepListening(const char *routerIp, int routerPort){
+int keepListening(const char *routerIp, int routerPort, const char *hostLogicalIp){
     int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (actualSocketFd < 0) {
         perror("socket");
@@ -48,7 +48,7 @@ int keepListening(const char *routerIp, int routerPort){
 
     // --- REGISTRAR LA IP LÓGICA ---
     char announceFrame[64];
-    snprintf(announceFrame, sizeof(announceFrame), "%s%c10.0.0.1\n", PROTOCOL_ANNOUNCE, PROTOCOL_SEPARATOR);
+    snprintf(announceFrame, sizeof(announceFrame), "%s%c%s\n", PROTOCOL_ANNOUNCE, PROTOCOL_SEPARATOR, hostLogicalIp);
     send(actualSocketFd, announceFrame, strlen(announceFrame), 0);
 
     printf("Se ha conectado al router exitosamente: %s:%d\n", routerIp, routerPort);

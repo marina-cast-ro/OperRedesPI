@@ -16,15 +16,17 @@ static void printUsage(const char *programName){
 }
 
 static int versionListen(int argc, char *argv[]){
-    if (argc != 4){
-        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort>\n", argv[0]);
+    if (argc < 4 || argc > 5){
+        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *routerIp = argv[2];
     int routerPort = atoi(argv[3]);
+    // Si se pasa el argumento lo usa, si no, usa "10.0.0.100" por defecto
+    const char *hostLogicalIp = (argc == 5) ? argv[4] : "10.0.0.100";
 
-    if(keepListening(routerIp, routerPort) != 0){
+    if(keepListening(routerIp, routerPort, hostLogicalIp) != 0){
         fprintf(stderr, "Error al escuchar\n");
         return EXIT_FAILURE;
     }
