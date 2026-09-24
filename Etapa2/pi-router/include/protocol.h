@@ -36,9 +36,18 @@ typedef struct {
     size_t dataLength;
 } RoutingMessage;
 
-// Lee y valida un mensaje completo usando length, sin '\0', '\r' ni '\n'.
+// Lee y valida un mensaje completo usando length, limpiando caracteres residuales
+// o saltos de línea (\n, \r, \0) del buffer del socket para admitir tramas válidas.
 // Rechaza la IP 0.0.0.0. En DATA, lo posterior al segundo '|' son los datos.
 // data apunta al paquete original: conservarlo y leer usando dataLength.
+// Retorna 0 si es válido, -1 en caso de error (sin modificar message si falla).
 int decodeFrame(const void *frame, size_t length, RoutingMessage *message);
+
+// Transforma una estructura RoutingMessage en el string exacto según el protocolo:
+// - ROUTING_ANNOUNCEMENT:  "ANNOUNCE|IP\n"
+// - ROUTING_ADVERTISEMENT: "ADVERTISE|IP\n"
+// - ROUTING_DATA:          "DATA|IP|DATOS\n"
+// La cadena queda terminada en '\0'.
+int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize);
 
 #endif  // ETAPA2_PROTOCOL_H

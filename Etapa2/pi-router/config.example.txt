@@ -1,0 +1,12 @@
+# PROPUESTA: initRouter todavia no reconoce ip_wifi, ip_ethernet ni host.
+# Direcciones de ejemplo. Usar las direcciones reales de cada equipo.
+# En este ejemplo todos los programas escuchan en el puerto 5000.
+router_id: R1
+puerto: 5000
+ip_wifi: 192.168.1.101
+ip_ethernet: 10.1.0.1
+host: PC1 10.1.0.2 5000
+vecino: R2 192.168.1.102 5000
+
+# Se pueden agregar mas lineas host y vecino.
+# Cada computadora debe tener una IP diferente dentro de la red del proyecto.
