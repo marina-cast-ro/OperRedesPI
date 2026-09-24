@@ -62,6 +62,6 @@ Antes del jueves **24** de septiembre.
 
 **Archivos:** listener.c, sender.c, main.c, listener.h, sender.h
 
-- [ ] Receptor: Programar keepListening() configurando el socket cliente pasivo, y showMessage() para imprimir datos en terminal.
-- [ ] Emisor: Programar sendMessage() para que el cliente empaquete y mande datos al router.
-- [ ] CLI (Interfaz de comandos): Programar main.c con el manejo de argumentos (argc/argv) para que el usuario decida si el ejecutable arranca en modo router, emisor o receptor.
+- [x] Receptor: Programar keepListening() configurando el socket cliente pasivo, y showMessage() para imprimir datos en terminal.
+- [x] Emisor: Programar sendMessage() para que el cliente empaquete y mande datos al router.
+- [x] CLI (Interfaz de comandos): Programar main.c con el manejo de argumentos (argc/argv) para que el usuario decida si el ejecutable arranca en modo router, emisor o receptor.
