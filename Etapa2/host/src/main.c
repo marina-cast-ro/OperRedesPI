@@ -1,13 +1,17 @@
 #include "listener.h"
 #include "sender.h"
+#include "router.h"
+#include "configParser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static void printUsage(const char *programName){
     fprintf(stderr, "Uso:\n");
     fprintf(stderr, "  %s --listen <routerIp> <routerPort>\n", programName);
     fprintf(stderr, "  %s --send <routerIp> <routerPort> <destIp> <mensaje>\n", programName);
+    fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", programName);
 }
 
 static int versionListen(int argc, char *argv[]){
@@ -44,17 +48,47 @@ static int versionSend(int argc, char *argv[]){
     return EXIT_SUCCESS;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
+static int versionRouter(int argc, char *argv[]){
+    if(argc != 3){
+        fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", argv[0]);        
+        return EXIT_FAILURE;
+    }
+
+    const char *configPath = argv[2];
+
+    ConfigRouter router = parseConfigAndPreload(configPath);
+    if(router.port == ERROR_ROUTER){
+        fprintf(stderr, "Error al leer el archivo de configuración: %s\n", configPath);
+        return EXIT_FAILURE;
+    }
+
+    if(initRouterListen(router) != 0){
+        fprintf(stderr, "Error al iniciar el router\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("Router ejecutando en el puerto... %d.\n", router.port);
+    while(1){
+        sleep(1);//esto permite mantener el proceso principal vivo, mientras el hilo escucha
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int main(int argc, char *argv[]){
+    if(argc < 2){
         printUsage(argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (strcmp(argv[1], "--listen") == 0) {
+    if (strcmp(argv[1], "--listen") == 0){
         return versionListen(argc, argv);
 
-    } else if (strcmp(argv[1], "--send") == 0) {
+    } else if (strcmp(argv[1], "--send") == 0){
         return versionSend(argc, argv);
+
+    } else if (strcmp(argv[1], "--router") == 0) {
+        return versionRouter(argc, argv);
 
     } else {
         fprintf(stderr, "Modo desconocido: %s\n", argv[1]);
