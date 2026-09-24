@@ -16,7 +16,7 @@ static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort)
 }
 
 static void processMessage(RoutingMessage *msg){
-    if(msg->type == ROUTING_DATA){
+    if(msg->type == ROUTING_DATA && msg->data != NULL){
         char dataToShow[msg->dataLength + 1];
         memcpy(dataToShow, msg->data, msg->dataLength);
         dataToShow[msg->dataLength] = '\0'; //le agregamos caracter nulo al final
@@ -30,23 +30,26 @@ int keepListening(const char *routerIp, int routerPort){
         perror("socket");
         return -1;
     }
-    //se establece informacion del socket
+
     struct sockaddr_in routerAddress;
     initRouterAddress(&routerAddress, routerPort);
 
-    //verificamos si la direccion IP es valida. 
     if(inet_pton(AF_INET, routerIp, &routerAddress.sin_addr) != 1){
         fprintf(stderr, "Dirección IP inválida: %s\n", routerIp);
         close(actualSocketFd);
         return -1;
     }
 
-    //verificamos si el puerto es correcto
-    if(connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress))< 0){
+    if(connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress)) < 0){
         perror("connect");
         close(actualSocketFd);
         return -1;
     }
+
+    // --- REGISTRAR LA IP LÓGICA ---
+    char announceFrame[64];
+    snprintf(announceFrame, sizeof(announceFrame), "%s%c10.0.0.1\n", PROTOCOL_ANNOUNCE, PROTOCOL_SEPARATOR);
+    send(actualSocketFd, announceFrame, strlen(announceFrame), 0);
 
     printf("Se ha conectado al router exitosamente: %s:%d\n", routerIp, routerPort);
 
@@ -56,20 +59,30 @@ int keepListening(const char *routerIp, int routerPort){
         char buffer[LISTENER_BUFFER_SIZE];
         RoutingMessage msg; 
 
+        // Única lectura por iteración usando actualSocketFd
         ssize_t receivedBytes = recv(actualSocketFd, buffer, sizeof(buffer) - 1, 0);
-        if(receivedBytes > 0) buffer[receivedBytes] = '\0'; 
 
         if(receivedBytes <= 0){
-            flag = 0; //si la conexion se cierra salimos del ciclo
+            printf("[HOST LISTENER] Conexión cerrada por el router.\n");
+            flag = 0; 
         }
         else{
+            buffer[receivedBytes] = '\0';
+
+            // Muestra en pantalla los bytes crudos leídos del socket
+            printf("[HOST LISTENER] Bytes recibidos (%zd bytes): [%s]\n", receivedBytes, buffer);
+            
+            // Decodifica la trama entrante ("DATA|IP|MENSAJE\n")
             if(decodeFrame(buffer, (size_t)receivedBytes, &msg) == 0){
                 processMessage(&msg);
+            } else {
+                printf("[HOST LISTENER] Error: decodeFrame() no pudo interpretar la trama.\n");
             }
         }
     }
-        close(actualSocketFd);
-        return 0;
+    
+    close(actualSocketFd);
+    return 0;
 }
 
 void showMessage(const char* receivedMessage){

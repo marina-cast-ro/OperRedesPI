@@ -28,6 +28,7 @@ static void sendFrame(int socket, const char *message) {
     }
 
     if (length > 0 && (size_t)length < sizeof(frame)) {
+        printf("[FORWARD] Enviando trama limpia al socket %d: %s", socket, frame);
         send(socket, frame, (size_t)length, 0);
     }
 }
@@ -117,7 +118,10 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             pthread_mutex_unlock(&tableMutex);
 
             if (found == 0) {
+                printf("[FORWARD] Encontrada ruta para la IP destino. Reenviando por socket %u...\n", destinationSocket);
                 sendFrame((int)destinationSocket, buffer);
+            } else {
+                printf("[FORWARD] No se encontró ruta para la IP destino. Paquete descartado.\n");
             }
             break;
     }
