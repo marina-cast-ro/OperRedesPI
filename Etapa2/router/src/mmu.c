@@ -11,7 +11,7 @@ static TLBEntry tlb[TLB_SIZE];
 static uint8_t tlbNextVictim = 0; 
 
 void updateTLB(void) {
-	tlbNextVictim = (tlbNextVictim + 1) % TLB_SIZE;
+	tlbNextVictim = (uint8_t)((tlbNextVictim + 1) % TLB_SIZE);
 }
 
 void initMMU(void) {

@@ -25,22 +25,11 @@ typedef struct {
     int port;           // Puerto de entrada de datos al router
 } ConfigRouter;
 
-// Variables de estado del router
-static int          socket_fd = -1;  // Socket para identificar una sesión activa
-static pthread_t    listen_thread;   // Hilo de escucha del router
-static volatile int running = 0;     // Estado (sensible) del router
 
-static int peers_fds[MAX_PEERS];     // Lista de registro de los vecinos activos actuales
 
 // Inicia el socket de escucha en router.port y lanza el hilo pasivo en segundo plano.
 // Retorna 0 si el servidor arrancó bien, -1 en caso de error.
 int initRouterListen(ConfigRouter router);
-
-// Función interna: El router registra un vecino entrante y estable
-static void addPeer(int fd);
-
-// Función interna: El router descarta un vecino que ya cumplió su función
-static void removePeer(int fd);
 
 // Función ejecutada por el hilo de escucha (compatible con pthread_create):
 // - Ejecuta accept(): al conectar el Host/listener, extrae su IP y actualiza la MMU con saveRoute(ip_pc, client_fd).

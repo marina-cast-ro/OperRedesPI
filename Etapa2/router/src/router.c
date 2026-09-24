@@ -2,6 +2,19 @@
 
 //int socket_fd;
 
+// Variables de estado del router
+static int          socket_fd = -1;  // Socket para identificar una sesión activa
+static pthread_t    listen_thread;   // Hilo de escucha del router
+static volatile int running = 0;     // Estado (sensible) del router
+
+static int peers_fds[MAX_PEERS];     // Lista de registro de los vecinos activos actuales
+
+// Función interna: El router registra un vecino entrante y estable
+static void addPeer(int fd);
+
+// Función interna: El router descarta un vecino que ya cumplió su función
+static void removePeer(int fd);
+
 int initRouterListen(ConfigRouter router) {
     // Creación del socket TCP del router para la escucha
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -19,7 +32,7 @@ int initRouterListen(ConfigRouter router) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = router.localIp;
-    addr.sin_port = htons(router.port);
+    addr.sin_port = htons((uint16_t)router.port);
  
     // Bindeo del socket 
     if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
@@ -119,7 +132,9 @@ void *listening(void *arg) {
             // Se envía la info a la MMU + Guardado del nuevo vecino
             if (new_FD >= 0) {
                 uint32_t ip_pc = peer_address.sin_addr.s_addr;
-                saveRoute(ip_pc, new_FD);
+                if (new_FD >= 0) {
+                    saveRoute(ip_pc, (uint32_t)new_FD);
+                }
                 addPeer(new_FD);
             }
         }

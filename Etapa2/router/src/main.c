@@ -10,6 +10,7 @@
 
 
 // --- MAIN PRINCIPAL DE EJEMPLO ---
+/*
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("Uso: %s [router | receptor | emisor] [args...]\n", argv[0]);
@@ -69,3 +70,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+*/

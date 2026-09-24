@@ -11,23 +11,26 @@
 static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort){
     memset(routerAddress, 0, sizeof(*routerAddress)); //le pasamos como parametro la ip del router
     routerAddress->sin_family = AF_INET;
-    routerAddress->sin_port = htons(routerPort);
+    routerAddress->sin_port = htons((uint16_t)routerPort);
 }
 
-static int buildFrame(const char *destIp, const char *message, RoutingMessage *msg){
+static int buildFrame(const char *destIp, const char *message, RoutingMessage *msg) {
+    if (!destIp || !message || !msg) {
+        return -1;
+    }
+
     struct in_addr address;
     
-    //se convierte la direccion IP a formato binario
-    //devuelve 1 si se hizo la conversion 
-    if(inet_pton(AF_INET, destIp, &address) != 1){
+    // Convierte la dirección IP a formato binario de red (Big-Endian)
+    if (inet_pton(AF_INET, destIp, &address) != 1) {
         fprintf(stderr, "Dirección IP inválida: %s\n", destIp);
         return -1;
     }
 
-    //se arma una trama
     msg->type = ROUTING_DATA;
+    msg->announcedIp = 0; // Se limpia la IP de anuncio
     msg->destinationIp = address.s_addr;
-    msg->data = message;
+    msg->data = message;  // Apunta a los datos (valido si message vive hasta llamar a encodeFrame)
     msg->dataLength = strlen(message);
 
     return 0;
@@ -70,7 +73,7 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
         close(actualSocketFd);        
         return -1;
     }
-    ssize_t dataSent = send(actualSocketFd, buffer, encodedBytes, 0);
+    ssize_t dataSent = send(actualSocketFd, buffer, (size_t)encodedBytes, 0);
     if(dataSent < 0){
         perror("send");
         close(actualSocketFd);

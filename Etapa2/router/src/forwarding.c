@@ -34,14 +34,17 @@ static void sendFrame(int socket, const char *message) {
 
 // Arma un mensaje con una IP, y se lo manda a todos los vecinos menos por exceptSocket, que es por donde llegó. Con exceptSocket en -1 se lo manda a todos
 static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket) {
+    (void)exceptSocket; // Silencia el aviso de parámetro no usado
     char message[MAX_BUFFER_SIZE];
     char ipText[INET_ADDRSTRLEN];
-    int sockets[MAX_NEIGHBORS];
+    //int sockets[MAX_NEIGHBORS];
     struct in_addr address;
 
     address.s_addr = ip;
     inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
     snprintf(message, sizeof(message), "%s%c%s", type, PROTOCOL_SEPARATOR, ipText);
+
+    /* Lógica temporal desactivada */
 
     /*int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
     for (int i = 0; i < count; i++) {

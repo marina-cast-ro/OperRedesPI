@@ -24,7 +24,7 @@ TARGET := $(BUILDDIR)/routing
 TEST := $(BUILDDIR)/testMemory
 
 # --- BANDERAS DE COMPILACIÓN ---
-CFLAGS := -Wall -Wextra -MMD
+CFLAGS := -Wall -Wextra -Wpedantic -Wshadow -Wconversion -MMD
 INCLUDES := -I. -Ihost/include -Irouter/include
 LDFLAGS := -pthread
 

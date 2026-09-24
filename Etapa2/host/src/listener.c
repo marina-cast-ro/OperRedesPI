@@ -12,7 +12,7 @@
 static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort){
     memset(routerAddress, 0, sizeof(*routerAddress)); //le pasamos como parametro la ip del router
     routerAddress->sin_family = AF_INET;
-    routerAddress->sin_port = htons(routerPort);
+    routerAddress->sin_port = htons((uint16_t)routerPort);
 }
 
 static void processMessage(RoutingMessage *msg){
@@ -63,7 +63,7 @@ int keepListening(const char *routerIp, int routerPort){
             flag = 0; //si la conexion se cierra salimos del ciclo
         }
         else{
-            if(decodeFrame(buffer, receivedBytes, &msg) == 0){
+            if(decodeFrame(buffer, (size_t)receivedBytes, &msg) == 0){
                 processMessage(&msg);
             }
         }
