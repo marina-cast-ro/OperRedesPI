@@ -17,7 +17,15 @@ static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
 // Manda el mensaje por un socket, agregándole el fin de línea que separa una trama de la otra
 static void sendFrame(int socket, const char *message) {
     char frame[MAX_BUFFER_SIZE];
-    int length = snprintf(frame, sizeof(frame), "%s\n", message);
+    size_t msgLen = strlen(message);
+    int length;
+
+    // Si ya trae salto de línea al final (como las tramas de DATA)
+    if (msgLen > 0 && message[msgLen - 1] == '\n') {
+        length = snprintf(frame, sizeof(frame), "%s", message);
+    } else {
+        length = snprintf(frame, sizeof(frame), "%s\n", message);
+    }
 
     if (length > 0 && (size_t)length < sizeof(frame)) {
         send(socket, frame, (size_t)length, 0);
