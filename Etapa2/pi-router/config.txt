@@ -1,4 +1,14 @@
-ip_local: 10.0.0.1
-puerto: 8080
-host_local: 10.0.0.10 eth0
-host_local: 10.0.0.11 eth1
+# CONFIG.TXT DE EJEMPLO
+
+# ==========================================
+# Configuración del Router Local
+# ==========================================
+local_ip: 10.0.0.1
+port: 8080
+
+# ==========================================
+# Hosts Locales Directos (IP:Interfaz)
+# ==========================================
+host: 10.0.0.100:1
+host: 10.0.0.101:2
+host: 10.0.0.102:3

@@ -3,9 +3,10 @@
 
 #include "protocol.h"
 
-// Bucle en segundo plano para escuchar mensajes dirigidos a este nodo host.
-// Usa decodeFrame() de protocol.h para parsear los paquetes entrantes.
-int keepListening(int localPort);
+// Se conecta al puerto de escucha del router local (routerPort)
+// y mantiene el bucle recv() para recibir tramas DATA dirigidas a esta PC.
+// Usa decodeFrame() para parsear los paquetes.
+int keepListening(const char *routerIp, int routerPort);
 
 // Imprime en pantalla el mensaje recibido ya deserializado.
 void showMessage(const char* receivedMessage);
