@@ -1,29 +1,80 @@
 #include "sender.h"
-#include "serverFrameBuilder.h"
 #include <string.h>
 #include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
-// TODO: aun no existe un tipo HELLO en protocol.h, se usa DATA como placeholder
-// TODO: el Header no tiene campo de IP destino; esto depende del protocolo
-//       que se defina en clase (inter-dominio). Preguntar al grupo.
-int greetAndMeet(const char *routerIp, int routerPort, const char *ownIp) {
-    uint8_t frame[MAX_BUFFER_SIZE];
-    size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, (const uint8_t *)ownIp, strlen(ownIp), frame, sizeof(frame));
-    if (frameSize == 0) {
-        fprintf(stderr, "Error armando el anuncio de IP\n");
-        return -1;
-    }
-    return sendFrameSockets(routerIp, routerPort, frame, frameSize);
+#define SENDER_BUFFER_SIZE 1024
+
+static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort){
+    memset(routerAddress, 0, sizeof(*routerAddress)); //le pasamos como parametro la ip del router
+    routerAddress->sin_family = AF_INET;
+    routerAddress->sin_port = htons(routerPort);
 }
 
-int sendMessage(const char *routerIP, int routerPort, const char *destIP, int destPort, const char *message) {
-    // TODO: destIp/destPort no caben en el Header actual (4 bytes).
-    // Por ahora se manda solo el mensaje; falta cómo indicar el destino final.
-    uint8_t frame[MAX_BUFFER_SIZE];
-    size_t frameSize = buildFrame(PROTOCOL_FRAME_DATA, (const uint8_t *)message, strlen(message), frame, sizeof(frame));
-    if (frameSize == 0) {
-        fprintf(stderr, "Error armando el mensaje\n");
+static int buildFrame(const char *destIp, const char *message, RoutingMessage *msg){
+    struct in_addr address;
+    
+    //se convierte la direccion IP a formato binario
+    //devuelve 1 si se hizo la conversion 
+    if(inet_pton(AF_INET, destIp, &address) != 1){
+        fprintf(stderr, "Dirección IP inválida: %s\n", destIp);
         return -1;
     }
-    return sendFrameSockets(routerIP, routerPort, frame, frameSize);
+
+    //se arma una trama
+    msg->type = ROUTING_DATA;
+    msg->destinationIp = address.s_addr;
+    msg->data = message;
+    msg->dataLength = strlen(message);
+
+    return 0;
+}
+
+int sendMessage(const char *routerIp, int routerPort, const char *destIp, const char *message){
+    int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (actualSocketFd < 0) {
+        perror("socket");
+        return -1;
+    }
+    //se establece informacion del socket
+    struct sockaddr_in routerAddress;
+    initRouterAddress(&routerAddress, routerPort);
+
+    if(inet_pton(AF_INET, routerIp, &routerAddress.sin_addr) != 1){
+        fprintf(stderr, "Dirección IP inválida: %s\n", routerIp);
+        close(actualSocketFd);
+        return -1;
+    }
+
+    //verificamos si el puerto es correcto
+    if(connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress))< 0){
+        perror("connect");
+        close(actualSocketFd);
+        return -1;
+    }
+
+    RoutingMessage msg; //el mensaje que vamos a enviar
+    
+    if(buildFrame(destIp, message, &msg)){//cargamos en msg la informacion del mensaje
+        close(actualSocketFd);
+        return -1; //significa que el destIP es invalido
+    } 
+
+    char buffer[SENDER_BUFFER_SIZE];
+    if(encodeFrame(&msg, buffer, sizeof(buffer)) != 0){
+        close(actualSocketFd);        
+        return -1; //error en el empaquetado
+    }
+
+    ssize_t dataSent = send(actualSocketFd, buffer, strlen(buffer), 0);
+    if(dataSent < 0){
+        perror("send");
+        close(actualSocketFd);
+        return -1;   
+    }
+    close(actualSocketFd);
+    return 0;
 }
