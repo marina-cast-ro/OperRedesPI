@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #define ERROR_ROUTER      -1   // Bandera para indicar que el router contiene errores
@@ -15,8 +16,13 @@
 // Struct de datos atributos del router
 typedef struct {
     uint32_t localIp;   // IP del router en formato binario (4 bytes)
-    int port;
+    int port;           // Puerto de entrada de datos al router
 } ConfigRouter;
+
+// Variables de estado del router
+static int          socket_fd = -1;  // Socket del router
+static pthread_t    listen_thread;   // Hilo de escucha del router
+static volatile int running = 0;     // Estado (sensible) del router
 
 // Inicia el socket de escucha en router.port y lanza el hilo pasivo en segundo plano.
 // Retorna 0 si el servidor arrancó bien, -1 en caso de error.

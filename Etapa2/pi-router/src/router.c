@@ -1,6 +1,56 @@
 #include "../include/router.h"
 
-int sock_fd;
+//int socket_fd;
+
+int initRouterListen(ConfigRouter router) {
+    // Creación del socket TCP del router para la escucha
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
+        perror("[ROUTER] Error al crear el socket de escucha\n");
+        return -1;
+    }
+    
+    // Configuración base del socket TCP
+    int opt = 1; 
+    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    
+    // Configuración de datos para el socket
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = router.localIp;
+    addr.sin_port = htons(router.port);
+ 
+    // Bindeo del socket 
+    if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        close(socket_fd);
+        socket_fd = -1;
+        return -1;
+    }
+ 
+    // Escucha del socket
+    if (listen(socket_fd, 10) < 0) {
+        perror("listen");
+        close(socket_fd);
+        socket_fd = -1;
+        return -1;
+    }
+ 
+    running = 1;
+ 
+    // Creación del hilo de escucha
+    if (pthread_create(&listen_thread, NULL, listening, NULL) != 0) {
+        perror("pthread_create");
+        close(socket_fd);
+        socket_fd = -1;
+        running = 0;
+        return -1;
+    }
+ 
+    print("[ROUTER] Inicialización exitosa del router con el puerto %d\n", router.port);
+    return 0;
+}
 
 ConfigRouter initRouter(void) {
     ConfigRouter router;
@@ -148,29 +198,6 @@ void *listening(void *arg) {
     }
  
     return NULL;
-}
-
-/*static int initRouterListen(ConfigRouter router) {
-    pr_info("[ROUTER] Activando router con el puerto %d\n", router.port);
-
-    // Creación del socket del router para la escucha
-    int error = ksocketCreate(&listen_socket, router.port);
-    if (error < 0) {
-        pr_err("[ROUTER] Error al crear el socket de escucha\n");
-        return error;
-    }
-
-    // Creación de un hilo encargado de la escucha para el router
-    listen_thread = kthread_run(listening, NULL, "router_listen_thread");
-    if (IS_ERR(listen_thread)) {
-        pr_err("[ROUTER] Error al crear el hilo de escucha\n");
-        ksocketRelease(listen_socket);
-        return PTR_ERR(listen_thread);
-    }
-
-    sendInitialMsg(router);
-
-    return 0;
 }
 
 static void endRouterListen(ConfigRouter router) {
