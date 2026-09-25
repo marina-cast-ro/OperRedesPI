@@ -64,12 +64,13 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
     } 
 
     char buffer[SENDER_BUFFER_SIZE];
-    if(encodeFrame(&msg, buffer, sizeof(buffer)) != 0){
+    // Declara encodedBytes y guarda el retorno de encodeFrame
+    int encodedBytes = encodeFrame(&msg, buffer, sizeof(buffer));
+    if(encodedBytes <= 0){
         close(actualSocketFd);        
-        return -1; //error en el empaquetado
+        return -1;
     }
-
-    ssize_t dataSent = send(actualSocketFd, buffer, strlen(buffer), 0);
+    ssize_t dataSent = send(actualSocketFd, buffer, encodedBytes, 0);
     if(dataSent < 0){
         perror("send");
         close(actualSocketFd);

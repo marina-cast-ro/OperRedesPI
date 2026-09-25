@@ -59,3 +59,19 @@ int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId) {
     }
     return -1;  // No está en la tabla
 }
+
+int getRouteIp(int index, uint32_t *destinationIp) {
+    uint32_t storedIp;
+
+    if (index < 0 || index >= ROUTE_CAPACITY) {
+        return -1;  // Fuera de la tabla
+    }
+
+    storedIp = readNumber(index * ROUTE_SIZE, 4);
+    if (storedIp == 0) {
+        return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
+    }
+
+    *destinationIp = storedIp;
+    return 0;
+}

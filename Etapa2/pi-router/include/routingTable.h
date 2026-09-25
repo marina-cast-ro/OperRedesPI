@@ -12,4 +12,8 @@ int saveRoute(uint32_t destinationIp, uint32_t interfaceId);
 // Retorna 0 y deja la interfaz en *outInterfaceId si la encontró, -1 si no hay ruta
 int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId);
 
+// Lee la IP destino de la ruta número index, contando desde 0.
+// Retorna 0 y la deja en *destinationIp si esa posición tiene una ruta, -1 si ya no hay más
+int getRouteIp(int index, uint32_t *destinationIp);
+
 #endif // ROUTINGTABLE_H

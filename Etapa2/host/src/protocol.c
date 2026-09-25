@@ -169,7 +169,7 @@ int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize) 
             return -1;
         }
 
-        return 0;
+        return written;
     }
 
     // Formato para DATA: DATA|IP|DATOS\n =================================
@@ -206,5 +206,5 @@ int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize) 
     buffer[prefixLen + dataLen] = '\n';
     buffer[prefixLen + dataLen + 1] = '\0';
 
-    return 0;
+    return (int)(prefixLen + dataLen + 1);
 }

@@ -56,7 +56,9 @@ int keepListening(const char *routerIp, int routerPort){
         char buffer[LISTENER_BUFFER_SIZE];
         RoutingMessage msg; 
 
-        ssize_t receivedBytes = recv(actualSocketFd, buffer, sizeof(buffer), 0);        
+        ssize_t receivedBytes = recv(actualSocketFd, buffer, sizeof(buffer) - 1, 0);
+        if(receivedBytes > 0) buffer[receivedBytes] = '\0'; 
+
         if(receivedBytes <= 0){
             flag = 0; //si la conexion se cierra salimos del ciclo
         }
