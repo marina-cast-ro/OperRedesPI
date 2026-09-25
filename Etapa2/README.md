@@ -67,24 +67,6 @@
 ```mermaid
 flowchart TD
 
-subgraph group_capture["Captura de mediciones"]
-  node_sensor["Sensor de movimiento<br/>[movementSensor.py]"]
-  node_simulator["Simulador de sensor<br/>[simulateSensor.py]"]
-  node_storage[("Almacenamiento auxiliar<br/>[storage.py]")]
-end
-
-subgraph group_stage1["Transporte Etapa 1"]
-  node_kernel_syscalls["Syscalls de protocolo<br/>[syscallModule.c]"]
-  node_stop_wait["Stop-and-wait<br/>[stopAndWait.c]"]
-  node_kernel_socket["Socket de kernel<br/>[kernelSocket.c]"]
-  node_user_server["Servidor emisor<br/>[serverMain.c]"]
-  node_file_reader["Lector de archivos<br/>[serverFileReader.c]"]
-  node_frame_builder["Constructor de tramas"]
-  node_sender["Emisor de datos<br/>[serverSender.c]"]
-  node_client["Receptor UDP<br/>[clientUser.c]"]
-  node_sensor_output[("Archivo de mediciones")]
-end
-
 subgraph group_stage2["Red Etapa 2"]
   node_host_send["Host emisor<br/>[sender.c]"]
   node_host_listen["Host listener<br/>[listener.c]"]
@@ -100,15 +82,9 @@ subgraph group_routing["Estado y rutas"]
   node_virtual_memory[("Memoria virtual<br/>[virtualMemory.c]")]
 end
 
-node_operator(("Operador"))
 node_network_peer(("Router vecino"))
 node_host_user(("Usuario de red"))
 
-node_operator -->|"lee movimiento"| node_sensor
-node_operator -->|"simula mediciones"| node_simulator
-node_kernel_syscalls -->|"envía trama"| node_stop_wait
-node_stop_wait -->|"usa socket"| node_kernel_socket
-node_client -->|"escribe mediciones"| node_sensor_output
 node_app_main -->|"inicia escucha"| node_host_listen
 node_app_main -->|"inicia envío"| node_host_send
 node_app_main -->|"lee configuración"| node_config
@@ -133,8 +109,6 @@ click node_kernel_socket "https://github.com/marina-cast-ro/operredespi/blob/mai
 click node_user_server "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa1/user/src/serverMain.c"
 click node_file_reader "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa1/user/src/serverFileReader.c"
 click node_frame_builder "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa1/user/src/serverFrameBuilder.c"
-click node_sender "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa1/user/src/serverSender.c"
-click node_client "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa1/user/src/clientUser.c"
 click node_host_send "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa2/host/src/sender.c"
 click node_host_listen "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa2/host/src/listener.c"
 click node_app_main "https://github.com/marina-cast-ro/operredespi/blob/main/Etapa2/main.c"
