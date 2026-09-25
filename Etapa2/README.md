@@ -207,7 +207,8 @@ hostname -I
 
 ```
 
-***1. Argumento 3 (IP de la computadora):*** *Es la dirección IP de la computadora (obtenida con ***hostname -I***) en donde el router se encuentra ejecutándose.*
+***1. Argumento 3 (IP de la computadora):*** *Es la dirección IP de la computadora (obtenida con ***hostname -I***) en donde el router se encuentra ejecutándose.*  
+
 ***2. Argumento 5 (IP Host):*** *Debe ser la misma que uno de los hosts locales directos (especificados en el archivo config.txt) del router.*
 
 #### Computadora emisora
@@ -224,8 +225,9 @@ hostname -I
 
 ```
 
-*El argumento 3 ***(IP propia)*** coresponde a la dirección IP del dispositivo actual. En caso de que el router se ubique en la misma máquina donde se hace el --send se utiliza la IP **127.0.0.1**, en caso contrario sería la IP real (la obtenida con hostname -I).*
-*El argumento 5 ***(IP Host / Externa)*** corresponde al destinatario.*
+*1. ***El argumento 3 (IP propia)*** coresponde a la dirección IP del dispositivo actual. En caso de que el router se ubique en la misma máquina donde se hace el --send se utiliza la IP **127.0.0.1**, en caso contrario sería la IP real (la obtenida con hostname -I).*  
+
+*2. ***El argumento 5 (IP Host / Externa)*** corresponde al dispositivo destinatario.*
 
 ### Limpieza y borrado de archivos
 
