@@ -6,11 +6,18 @@
 #include <arpa/inet.h>  // Para struct in_addr e inet_pton
 
 
+static uint32_t savedLocalIp = 0;  // La IP propia, guardada para el ANNOUNCE
+
+uint32_t getLocalIp(void) {
+    return savedLocalIp;
+}
+
 // Lee config.txt y precarga los vecinos en la MMU con saveRoute()
 ConfigRouter parseConfigAndPreload(const char *filename) {
     ConfigRouter router;
     router.localIp = 0;
     router.port = ERROR_ROUTER;
+    router.neighborCount = 0;
 
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -43,6 +50,14 @@ ConfigRouter parseConfigAndPreload(const char *filename) {
             router.port = atoi(line + 5);
         }
 
+        // --- Lee: neighbor (IP real y puerto de un router vecino) ---
+        else if (strncmp(line, "neighbor:", 9) == 0 && router.neighborCount < MAX_CONFIG_NEIGHBORS) {
+            int n = router.neighborCount;
+            if (sscanf(line + 9, " %15s %d", router.neighborIp[n], &router.neighborPort[n]) == 2) {
+                router.neighborCount++;
+            }
+        }
+
         // --- Precarga en la MMU: host ---
         else if (strncmp(line, "host:", 5) == 0) {
             char ip_str[16];
@@ -57,5 +72,6 @@ ConfigRouter parseConfigAndPreload(const char *filename) {
     }
 
     fclose(file);
+    savedLocalIp = router.localIp;
     return router;
 }

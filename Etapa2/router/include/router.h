@@ -19,10 +19,15 @@
 #define MAX_BUFFER_SIZE 1024   // Tamaño (carácteres) máximo de los datos a enviar/recibir
 #define MAX_PEERS         24   // Máximo de vecinos (basado en las personas aka I.P.'s del aula)
 
+#define MAX_CONFIG_NEIGHBORS 8   // Routers vecinos que se pueden anotar en config.txt
+
 // Struct de datos atributos del router
 typedef struct {
     uint32_t localIp;   // IP del router en formato binario (4 bytes)
     int port;           // Puerto de entrada de datos al router
+    int neighborCount;                          // Cuántos routers vecinos trae el config.txt
+    char neighborIp[MAX_CONFIG_NEIGHBORS][16];  // IP real (la del wifi) de cada router vecino
+    int neighborPort[MAX_CONFIG_NEIGHBORS];     // Puerto de cada router vecino
 } ConfigRouter;
 
 // Devuelve los sockets de los vecinos conectados.
