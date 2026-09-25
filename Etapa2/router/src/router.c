@@ -8,6 +8,7 @@ static volatile int running = 0;
 static ConfigRouter g_routerConfig; // Copia global de la configuración para los getters
 
 static int peers_fds[MAX_PEERS];
+static uint32_t peer_ips[1024];  // IP real de quien está del otro lado de cada socket
 static pthread_mutex_t peers_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void initPeers(void) {
@@ -69,7 +70,31 @@ static int connectToNeighborTCP(const char *ip, int port) {
         close(fd);
         return -1;
     }
+    if (fd < 1024) peer_ips[fd] = addr.sin_addr.s_addr;
     return fd;
+}
+
+uint32_t getPeerIp(int fd) {
+    return (fd >= 0 && fd < 1024) ? peer_ips[fd] : 0;
+}
+
+int sendToIp(uint32_t ip, const char *data, size_t length) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+
+    struct timeval timeout = {1, 0};  // Si no contesta, no quedarse pegado
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)g_routerConfig.port);
+    addr.sin_addr.s_addr = ip;
+
+    int sent = connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 &&
+               send(fd, data, length, MSG_NOSIGNAL) >= 0;
+    close(fd);
+    return sent ? 0 : -1;
 }
 
 // --- Getters requeridos por forwarding.c ---
@@ -215,6 +240,7 @@ void *listening(void *arg) {
                                  (struct sockaddr *)&client_addr, &addr_len);
             if (n > 0) {
                 buffer[n] = '\0';
+                if (udp_socket_fd < 1024) peer_ips[udp_socket_fd] = client_addr.sin_addr.s_addr;
                 processPacket(buffer, (size_t)n, udp_socket_fd);
             }
         }
@@ -226,6 +252,7 @@ void *listening(void *arg) {
             int new_FD = accept(tcp_socket_fd, (struct sockaddr *)&peer_address, &len);
 
             if (new_FD >= 0) {
+                if (new_FD < 1024) peer_ips[new_FD] = peer_address.sin_addr.s_addr;
                 addPeer(new_FD);
             }
         }
@@ -246,6 +273,7 @@ void *listening(void *arg) {
                     close(fd);
                 } else {
                     buffer[n] = '\0';
+                    int hasNewline = (strchr(buffer, '\n') != NULL);  // Antes de que el ciclo los borre
 
                     char *line_start = buffer;
                     char *line_end;
@@ -265,7 +293,7 @@ void *listening(void *arg) {
                         line_start = line_end + 1;
                     }
 
-                    if (strchr(buffer, '\n') == NULL && n > 0) {
+                    if (!hasNewline) {  // Mensaje sin salto de línea, como los de otros grupos
                         processPacket(buffer, (size_t)n, fd);
                     }
                 }

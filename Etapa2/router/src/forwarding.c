@@ -44,45 +44,69 @@ static void sendAnnounceUDP(uint32_t targetIp, int port, const char *message) {
     sendto(sock, frame, strlen(frame), 0, (struct sockaddr *)&dest, sizeof(dest));
 }
 
+// Envío a un router: conexión nueva por mensaje, como hacen los otros grupos
+static void sendFrameIp(uint32_t ip, const char *message) {
+    char frame[MAX_BUFFER_SIZE];
+    char ipText[INET_ADDRSTRLEN];
+    struct in_addr address;
+    size_t msgLen = strlen(message);
+    int length;
+
+    if (msgLen > 0 && message[msgLen - 1] == '\n') {
+        length = snprintf(frame, sizeof(frame), "%s", message);
+    } else {
+        length = snprintf(frame, sizeof(frame), "%s\n", message);
+    }
+
+    if (length > 0 && (size_t)length < sizeof(frame)) {
+        address.s_addr = ip;
+        inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
+        printf("[FORWARD-TCP] Enviando a %s: %s", ipText, frame);
+        sendToIp(ip, frame, (size_t)length);
+    }
+}
+
 static void announceToNeighborsTCP(const char *type, uint32_t ip, int exceptSocket) {
     char message[MAX_BUFFER_SIZE];
     char ipText[INET_ADDRSTRLEN];
-    int sockets[MAX_NEIGHBORS];
     struct in_addr address;
 
     address.s_addr = ip;
     inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
     snprintf(message, sizeof(message), "%s%c%s", type, PROTOCOL_SEPARATOR, ipText);
 
-    int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
+    // A cada vecino del config por su IP, menos al que nos lo contó
+    uint32_t exceptIp = getPeerIp(exceptSocket);
+    int count = getNeighborCount();
     for (int i = 0; i < count; i++) {
-        if (sockets[i] != exceptSocket) {
-            sendFrameTCP(sockets[i], message);
+        char neighborIp[16];
+        struct in_addr neighbor;
+        if (getNeighborInfo(i, neighborIp, NULL) == 0 &&
+            inet_pton(AF_INET, neighborIp, &neighbor) == 1 && neighbor.s_addr != exceptIp) {
+            sendFrameIp(neighbor.s_addr, message);
         }
     }
 }
 
 static int learnRoute(uint32_t ip, int sockfd, int isAnnounce) {
-    (void)isAnnounce;
-    uint32_t knownSocket = 0;
+    uint32_t known = 0;
     int isNew;
-    int routeChanged = 0;
+
+    // Nuestra PC se presenta por su conexión TCP, que queda abierta: se guarda el socket.
+    // Todo lo demás viene de un router: se guarda su IP, porque los otros grupos cierran
+    // la conexión después de cada mensaje y el socket deja de servir
+    uint32_t via = (isAnnounce && sockfd != getUdpSocket()) ? (uint32_t)sockfd : getPeerIp(sockfd);
 
     pthread_mutex_lock(&tableMutex);
     
-    // findRoute retorna 0 si la ruta YA existe en la tabla
-    isNew = (findRoute(ip, &knownSocket) != 0);
-
-    // Solo actualizar y propagar si la IP es completamente nueva
-    // o si cambió la interfaz/socket de salida para esa IP
-    if (isNew || knownSocket != (uint32_t)sockfd) {
-        saveRoute(ip, (uint32_t)sockfd);
-        routeChanged = 1;
+    isNew = (findRoute(ip, &known) != 0);
+    if (isNew || isAnnounce) {
+        saveRoute(ip, via);
     }
-
     pthread_mutex_unlock(&tableMutex);
 
-    return routeChanged;
+    // Solo se propaga lo nuevo, así los avisos no dan vueltas entre routers
+    return isNew;
 }
 
 // ANNOUNCE: Transmitido por UDP usando la lista de vecinos precargada
@@ -148,8 +172,12 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             pthread_mutex_unlock(&tableMutex);
 
             if (found == 0) {
-                printf("[FORWARD] Ruta encontrada. Reenviando por socket TCP %u...\n", destinationSocket);
-                sendFrameTCP((int)destinationSocket, buffer);
+                if (destinationSocket < 65536) {  // Un número chico es el socket abierto de nuestra PC
+                    printf("[FORWARD] Ruta encontrada. Reenviando por socket TCP %u...\n", destinationSocket);
+                    sendFrameTCP((int)destinationSocket, buffer);
+                } else {                          // Uno grande es la IP de un router
+                    sendFrameIp(destinationSocket, buffer);
+                }
             } else {
                 printf("[FORWARD] No se encontró ruta. Paquete descartado.\n");
             }

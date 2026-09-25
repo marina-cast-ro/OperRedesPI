@@ -48,6 +48,12 @@ void *listening(void *arg);
 void endRouterListen(ConfigRouter router);
 
 int getUdpSocket(void);
+
+// IP real de quien está del otro lado de un socket
+uint32_t getPeerIp(int fd);
+
+// Manda un mensaje como los otros grupos: abre una conexión TCP, manda y cierra
+int sendToIp(uint32_t ip, const char *data, size_t length);
 int getNeighborCount(void);
 int getNeighborInfo(int index, char *outIp, int *outPort);
 
