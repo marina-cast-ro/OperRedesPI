@@ -47,4 +47,8 @@ void *listening(void *arg);
 // Detiene de forma limpia el hilo de escucha y cierra los sockets abiertos.
 void endRouterListen(ConfigRouter router);
 
+int getUdpSocket(void);
+int getNeighborCount(void);
+int getNeighborInfo(int index, char *outIp, int *outPort);
+
 #endif  // ROUTER_H

@@ -1,48 +1,64 @@
 #include "../include/router.h"
 
-//int socket_fd;
+static int          tcp_socket_fd = -1;
+static int          udp_socket_fd = -1;
+static pthread_t    listen_thread;
+static volatile int running = 0;
 
-// Variables de estado del router
-static int          socket_fd = -1;  // Socket para identificar una sesión activa
-static pthread_t    listen_thread;   // Hilo de escucha del router
-static volatile int running = 0;     // Estado (sensible) del router
+static ConfigRouter g_routerConfig; // Copia global de la configuración para los getters
 
-static int peers_fds[MAX_PEERS];     // Lista de registro de los vecinos activos actuales
+static int peers_fds[MAX_PEERS];
+static pthread_mutex_t peers_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void initPeers(void) {
+    pthread_mutex_lock(&peers_mutex);
     for (int i = 0; i < MAX_PEERS; i++) {
         peers_fds[i] = -1;
     }
+    pthread_mutex_unlock(&peers_mutex);
 }
 
 int getNeighborSockets(int *sockets, int maxSockets) {
-    if (sockets == NULL || maxSockets <= 0) {
-        return 0;
-    }
+    if (sockets == NULL || maxSockets <= 0) return 0;
 
     int count = 0;
+    pthread_mutex_lock(&peers_mutex);
     for (int i = 0; i < MAX_PEERS && count < maxSockets; i++) {
         if (peers_fds[i] != -1) {
             sockets[count] = peers_fds[i];
             count++;
         }
     }
+    pthread_mutex_unlock(&peers_mutex);
 
     return count;
 }
 
-// Función interna: El router registra un vecino entrante y estable
-static void addPeer(int fd);
-
-// Función interna: El router descarta un vecino que ya cumplió su función
-static void removePeer(int fd);
-
-// Llama por TCP a un router vecino. Retorna el socket conectado, o -1 si no contestó
-static int connectToNeighbor(const char *ip, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        return -1;
+static void addPeer(int fd) {
+    pthread_mutex_lock(&peers_mutex);
+    for (int i = 0; i < MAX_PEERS; i++) {
+        if (peers_fds[i] == -1) {
+            peers_fds[i] = fd;
+            break;
+        }
     }
+    pthread_mutex_unlock(&peers_mutex);
+}
+
+static void removePeer(int fd) {
+    pthread_mutex_lock(&peers_mutex);
+    for (int i = 0; i < MAX_PEERS; i++) {
+        if (peers_fds[i] == fd) {
+            peers_fds[i] = -1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&peers_mutex);
+}
+
+static int connectToNeighborTCP(const char *ip, int port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
@@ -56,88 +72,106 @@ static int connectToNeighbor(const char *ip, int port) {
     return fd;
 }
 
+// --- Getters requeridos por forwarding.c ---
+
+int getUdpSocket(void) {
+    return udp_socket_fd;
+}
+
+int getNeighborCount(void) {
+    return g_routerConfig.neighborCount;
+}
+
+int getNeighborInfo(int index, char *outIp, int *outPort) {
+    if (index < 0 || index >= g_routerConfig.neighborCount) return -1;
+    if (outIp) strcpy(outIp, g_routerConfig.neighborIp[index]);
+    if (outPort) *outPort = g_routerConfig.neighborPort[index];
+    return 0;
+}
+
+// --- Inicialización y Escucha ---
+
 int initRouterListen(ConfigRouter router) {
+    g_routerConfig = router; // Guardamos la configuración para los getters
     initPeers();
 
-    // Creación del socket TCP del router para la escucha
-    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd < 0) {
-        perror("[ROUTER] Error al crear el socket de escucha\n");
+    int opt = 1;
+
+    // 1. Inicializar Socket UDP (exclusivo para ANNOUNCE)
+    udp_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (udp_socket_fd < 0) {
+        perror("[ROUTER] Error creando socket UDP");
         return -1;
     }
-    
-    // Configuración base del socket TCP
-    int opt = 1; 
-    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    
-    // Configuración de datos para el socket
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons((uint16_t)router.port);
+    setsockopt(udp_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    // Bindeo del socket 
-    if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("bind");
-        close(socket_fd);
-        socket_fd = -1;
+    struct sockaddr_in udp_addr;
+    memset(&udp_addr, 0, sizeof(udp_addr));
+    udp_addr.sin_family = AF_INET;
+    udp_addr.sin_addr.s_addr = INADDR_ANY;
+    udp_addr.sin_port = htons((uint16_t)router.port);
+
+    if (bind(udp_socket_fd, (struct sockaddr *)&udp_addr, sizeof(udp_addr)) < 0) {
+        perror("[ROUTER] Error en bind UDP");
+        close(udp_socket_fd);
         return -1;
     }
 
-    // Escucha del socket
-    if (listen(socket_fd, 10) < 0) {
-        perror("listen");
-        close(socket_fd);
-        socket_fd = -1;
+    // 2. Inicializar Socket TCP (para ADVERTISE y DATA)
+    tcp_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcp_socket_fd < 0) {
+        perror("[ROUTER] Error creando socket TCP");
+        close(udp_socket_fd);
+        return -1;
+    }
+    setsockopt(tcp_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in tcp_addr;
+    memset(&tcp_addr, 0, sizeof(tcp_addr));
+    tcp_addr.sin_family = AF_INET;
+    tcp_addr.sin_addr.s_addr = INADDR_ANY;
+    tcp_addr.sin_port = htons((uint16_t)router.port);
+
+    if (bind(tcp_socket_fd, (struct sockaddr *)&tcp_addr, sizeof(tcp_addr)) < 0) {
+        perror("[ROUTER] Error en bind TCP");
+        close(udp_socket_fd);
+        close(tcp_socket_fd);
         return -1;
     }
 
-    // Llama a cada router vecino del config.txt. Si alguno todavía no está encendido no pasa nada: cuando arranque, él nos va a llamar a nosotros
-    for (int i = 0; i < router.neighborCount; i++) {
-        int fd = connectToNeighbor(router.neighborIp[i], router.neighborPort[i]);
-        if (fd >= 0) {
-            addPeer(fd);
-            printf("[ROUTER] Conectado al vecino %s:%d por el socket %d\n",
-                   router.neighborIp[i], router.neighborPort[i], fd);
-        }
+    if (listen(tcp_socket_fd, 10) < 0) {
+        perror("[ROUTER] Error en listen TCP");
+        close(udp_socket_fd);
+        close(tcp_socket_fd);
+        return -1;
     }
 
-    // Se presenta y cuenta qué PC viven con él a los vecinos que contestaron
-    sendInitialAnnounce();
-    sendInitialAdvertise();
-
+    // 3. Arrancar Hilo Listener Único
     running = 1;
-
-    // Creación del hilo de escucha
-    if (pthread_create(&listen_thread, NULL, listening, NULL) != 0) {
-        perror("pthread_create");
-        close(socket_fd);
-        socket_fd = -1;
+    if (pthread_create(&listen_thread, NULL, listening, (void *)&router) != 0) {
+        perror("[ROUTER] Error creando hilo listener");
+        close(udp_socket_fd);
+        close(tcp_socket_fd);
         running = 0;
         return -1;
     }
 
-    printf("[ROUTER] Inicialización exitosa del router con el puerto %d\n", router.port);
-	return 0;
-}
-
-static void addPeer(int fd) {
-    for (int i = 0; i < MAX_PEERS; i++) {
-        if (peers_fds[i] == -1) {
-            peers_fds[i] = fd;
-            break;
+    // 4. Conectar TCP con vecinos
+    for (int i = 0; i < router.neighborCount; i++) {
+        int fd = connectToNeighborTCP(router.neighborIp[i], router.neighborPort[i]);
+        if (fd >= 0) {
+            addPeer(fd);
+            printf("[ROUTER] Conectado TCP al vecino %s:%d por el socket %d\n",
+                   router.neighborIp[i], router.neighborPort[i], fd);
         }
     }
-}
 
-static void removePeer(int fd) {
-    for (int i = 0; i < MAX_PEERS; i++) {
-        if (peers_fds[i] == fd) {
-            peers_fds[i] = -1;
-            break;
-        }
-    }
+    // 5. Envío Inicial
+    sendInitialAnnounce();
+    sendInitialAdvertise();
+
+    printf("[ROUTER] Inicialización exitosa (UDP+TCP) en puerto %d\n", router.port);
+    return 0;
 }
 
 void *listening(void *arg) {
@@ -146,118 +180,119 @@ void *listening(void *arg) {
 
     while (running) {
         fd_set read_fds;
-        FD_ZERO(&read_fds);            // Inicializa y vacía a los descriptores de archivo
-        FD_SET(socket_fd, &read_fds);  // Añade el socket principal al conjunto de FD's
-        
-        // Añade los FD vecinos al conjunto FD
-        int max_fd = socket_fd;
+        FD_ZERO(&read_fds);
+
+        FD_SET(udp_socket_fd, &read_fds);
+        FD_SET(tcp_socket_fd, &read_fds);
+
+        int max_fd = (udp_socket_fd > tcp_socket_fd) ? udp_socket_fd : tcp_socket_fd;
+
+        pthread_mutex_lock(&peers_mutex);
         for (int i = 0; i < MAX_PEERS; i++) {
             if (peers_fds[i] != -1) {
                 FD_SET(peers_fds[i], &read_fds);
-                
-                if (peers_fds[i] > max_fd) 
-                    max_fd = peers_fds[i];
+                if (peers_fds[i] > max_fd) max_fd = peers_fds[i];
             }
         }
+        pthread_mutex_unlock(&peers_mutex);
 
-        // Timeout de 1s para revisar running constantemente
         struct timeval tv = {1, 0};
-        // Vigila los FDs y avisa si hay alguno(s) con datos por leer
         int ret = select(max_fd + 1, &read_fds, NULL, NULL, &tv);
 
         if (ret < 0) {
-            // Fallo en la syscall interna del select()
-            if (errno == EINTR) 
-                continue;
-            // Fallo común en el select()
-            perror("[ROUTER] Error en la función nativa select() para la vigilancia de descriptores de archivo (vecinos)");
+            if (errno == EINTR) continue;
+            perror("[ROUTER] Error en select()");
             break;
         }
-    
-        // Timeout alcanzado
+
         if (ret == 0) continue;
 
-        // Nueva conexion entrante
-        if (FD_ISSET(socket_fd, &read_fds)) {
-            struct sockaddr_in peer_address;
-            socklen_t len = sizeof(peer_address);
-            int new_FD = accept(socket_fd, (struct sockaddr *)&peer_address, &len);
-            
-            if (new_FD >= 0) {
-                uint32_t ip_pc = peer_address.sin_addr.s_addr;
-                
-                // Guarda en la tabla de rutas la IP de origen asociada a este nuevo socket
-                saveRoute(ip_pc, (uint32_t)new_FD);
-                
-                // Registra el socket en la lista de vecinos para select()
-                addPeer(new_FD);
-
-                // Al que acaba de llegar se le cuenta todo lo que sabemos, por si arrancó después
-                sendInitialAnnounce();
-                sendInitialAdvertise();
+        // A. Recepción Datagrama UDP (ANNOUNCE)
+        if (FD_ISSET(udp_socket_fd, &read_fds)) {
+            struct sockaddr_in client_addr;
+            socklen_t addr_len = sizeof(client_addr);
+            ssize_t n = recvfrom(udp_socket_fd, buffer, sizeof(buffer) - 1, 0,
+                                 (struct sockaddr *)&client_addr, &addr_len);
+            if (n > 0) {
+                buffer[n] = '\0';
+                processPacket(buffer, (size_t)n, udp_socket_fd);
             }
         }
 
-        // Datos entrantes en vecinos ya conectados
-        for (int i = 0; i < MAX_PEERS; i++) {
-            int fd = peers_fds[i];
-            
+        // B. Nueva Conexión TCP Entrante
+        if (FD_ISSET(tcp_socket_fd, &read_fds)) {
+            struct sockaddr_in peer_address;
+            socklen_t len = sizeof(peer_address);
+            int new_FD = accept(tcp_socket_fd, (struct sockaddr *)&peer_address, &len);
+
+            if (new_FD >= 0) {
+                addPeer(new_FD);
+            }
+        }
+
+        // C. Lectura Datos TCP Entrantes (ADVERTISE / DATA)
+        int active_sockets[MAX_PEERS];
+        int active_count = getNeighborSockets(active_sockets, MAX_PEERS);
+
+        for (int i = 0; i < active_count; i++) {
+            int fd = active_sockets[i];
+
             if (fd != -1 && FD_ISSET(fd, &read_fds)) {
                 ssize_t n = recv(fd, buffer, MAX_BUFFER_SIZE - 1, 0);
-                
-                // Conexion cerrada por el vecino o un error
-                if (n <= 0) {
-                    printf("[ROUTER] Cliente/Listener desconectado en socket %d\n", fd);
 
+                if (n <= 0) {
+                    printf("[ROUTER] Cliente TCP desconectado en socket %d\n", fd);
                     removePeer(fd);
                     close(fd);
-                }
-                // Conexion establecida, se envía la trama para su procesamiento
-                else {
+                } else {
                     buffer[n] = '\0';
 
-                    // --- PROCESAMIENTO POR DELIMITADOR DE TRAMA (\n) ---
                     char *line_start = buffer;
                     char *line_end;
 
-                    // Procesa cada trama individual separada por '\n' dentro del buffer leído
                     while ((line_end = strchr(line_start, '\n')) != NULL) {
-                        *line_end = '\0'; // Corta la trama actual reemplazando el \n por \0
-                        
-                        size_t frame_len = (size_t)(line_end - line_start);
+                        *line_end = '\0';
+
+                        if (line_end > line_start && *(line_end - 1) == '\r') {
+                            *(line_end - 1) = '\0';
+                        }
+
+                        size_t frame_len = strlen(line_start);
                         if (frame_len > 0) {
                             processPacket(line_start, frame_len, fd);
                         }
 
-                        line_start = line_end + 1; // Avanza el puntero a la siguiente trama
+                        line_start = line_end + 1;
+                    }
+
+                    if (strchr(buffer, '\n') == NULL && n > 0) {
+                        processPacket(buffer, (size_t)n, fd);
                     }
                 }
             }
         }
-    }
- 
+    } // Fin del while (running)
+
     return NULL;
-}
+} // Fin de listening()
 
 void endRouterListen(ConfigRouter router) {
     (void)router;
-    
+
     running = 0;
     pthread_join(listen_thread, NULL);
 
-    // Se cierran los descriptores de archivos de cada vecino
+    pthread_mutex_lock(&peers_mutex);
     for (int i = 0; i < MAX_PEERS; i++) {
         if (peers_fds[i] != -1) {
             close(peers_fds[i]);
             peers_fds[i] = -1;
         }
     }
- 
-    // Socket aún activo, procede a cerrarse y restablecer su valor
-    if (socket_fd != -1) {
-        close(socket_fd);
-        socket_fd = -1;
-    }
+    pthread_mutex_unlock(&peers_mutex);
+
+    if (tcp_socket_fd != -1) close(tcp_socket_fd);
+    if (udp_socket_fd != -1) close(udp_socket_fd);
 
     printf("[ROUTER] Finalización de escucha del router\n");
 }
