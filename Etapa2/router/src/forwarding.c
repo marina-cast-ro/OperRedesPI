@@ -3,13 +3,9 @@
 #include "protocol.h"
 #include "routingTable.h"
 #include "router.h"
+#include "configParser.h"
 
 #define MAX_NEIGHBORS 16  // Cuántos vecinos puede tener este router como máximo
-
-// Falta implementar la función getNeighborSockets, que devuelve los sockets de los vecinos conectados.
-//int getNeighborSockets(int *sockets, int maxSockets);
-// Retorna la IP propia del router, la que viene en config.txt
-//uint32_t getLocalIp(void);
 
 // La tabla de rutas vive en una sola memoria simulada, y el hilo de escucha la escribe mientras alguien más la puede estar leyendo. Este candado evita que se corrompa.
 static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -29,7 +25,7 @@ static void sendFrame(int socket, const char *message) {
 
     if (length > 0 && (size_t)length < sizeof(frame)) {
         printf("[FORWARD] Enviando trama limpia al socket %d: %s", socket, frame);
-        send(socket, frame, (size_t)length, 0);
+        send(socket, frame, (size_t)length, MSG_NOSIGNAL);  // Si el otro ya colgó, que falle el send y no el programa entero
     }
 }
 
@@ -53,30 +49,24 @@ static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket)
 }
 
 // Aprende que a ip se llega por sockfd. Retorna 1 si la ruta era nueva, 0 si ya la conocíamos.
-// La búsqueda y el guardado van dentro del mismo candado para que dos hilos no crean los dos que la ruta es nueva y la propaguen dos veces
-static int learnRoute(uint32_t ip, int sockfd) {
+// Un ADVERTISE es de segunda mano: solo se guarda si la ruta es nueva, para que un vecino no nos pise una ruta buena con un aviso que le rebotó
+static int learnRoute(uint32_t ip, int sockfd, int isAnnounce) {
     uint32_t knownSocket = 0;
-    int isNew = 0;
+    int isNew;
 
     pthread_mutex_lock(&tableMutex);
-    
-    // findRoute retorna 0 si la encontró
-    int found = (findRoute(ip, &knownSocket) == 0);
-
-    // Si no existía, O si existía pero el socket cambió/era una interfaz estática (ej. 1 != 4)
-    if (!found || knownSocket != (uint32_t)sockfd) {
+    isNew = (findRoute(ip, &knownSocket) != 0);
+    if (isNew || isAnnounce) {
         saveRoute(ip, (uint32_t)sockfd);
-        isNew = 1; // Para que avise a los vecinos si es un nuevo aprendizaje/actualización
     }
-    
     pthread_mutex_unlock(&tableMutex);
 
+    // Se propaga solo lo que no conocíamos, así el aviso no da vueltas para siempre
     return isNew;
 }
 
 void sendInitialAnnounce(void) {
-    //announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
-	printf("Aca va sendInitialAnnounce() pero le faltan cosas");
+    announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
 }
 
 void sendInitialAdvertise(void) {
@@ -111,7 +101,7 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
         // Si ya la conocíamos no se hace nada, y así el aviso no da vueltas para siempre
         case ROUTING_ANNOUNCEMENT:
         case ROUTING_ADVERTISEMENT:
-            if (learnRoute(message.announcedIp, sockfd)) {
+            if (learnRoute(message.announcedIp, sockfd, message.type == ROUTING_ANNOUNCEMENT)) {
                 announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, sockfd);
             }
             break;
