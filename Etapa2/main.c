@@ -21,14 +21,14 @@ static void handleSigint(int sig) {
 
 static void printUsage(const char *programName){
     fprintf(stderr, "Uso:\n");
-    fprintf(stderr, "  %s --listen <routerIp> <routerPort> <hostLogicalIp>\n", programName);
+    fprintf(stderr, "  %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", programName);
     fprintf(stderr, "  %s --send <routerIp> <routerPort> <destIp> <mensaje>\n", programName);
     fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", programName);
 }
 
 static int versionListen(int argc, char *argv[]){
     if (argc < 4 || argc > 5){
-        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> <hostLogicalIp]>\n", argv[0]);
+        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -91,12 +91,12 @@ static int versionRouter(int argc, char *argv[]){
     }
 
     printf("Router ejecutando en el puerto... %d.\n", router.port);
-    while(1){
+    while(keepRunning){
         sleep(1);//esto permite mantener el proceso principal vivo, mientras el hilo escucha
     }
 
-    //FALTA CERRAR ROUTER
-    //endRouterListen(router);
+    printf("\nCerrando el router de forma limpia...\n");
+    endRouterListen(router);
     return EXIT_SUCCESS;
 }
 
