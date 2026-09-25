@@ -7,9 +7,9 @@
 #define MAX_NEIGHBORS 16  // Cuántos vecinos puede tener este router como máximo
 
 // Falta implementar la función getNeighborSockets, que devuelve los sockets de los vecinos conectados.
-int getNeighborSockets(int *sockets, int maxSockets);
+//int getNeighborSockets(int *sockets, int maxSockets);
 // Retorna la IP propia del router, la que viene en config.txt
-uint32_t getLocalIp(void);
+//uint32_t getLocalIp(void);
 
 // La tabla de rutas vive en una sola memoria simulada, y el hilo de escucha la escribe mientras alguien más la puede estar leyendo. Este candado evita que se corrompa.
 static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -17,9 +17,18 @@ static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
 // Manda el mensaje por un socket, agregándole el fin de línea que separa una trama de la otra
 static void sendFrame(int socket, const char *message) {
     char frame[MAX_BUFFER_SIZE];
-    int length = snprintf(frame, sizeof(frame), "%s\n", message);
+    size_t msgLen = strlen(message);
+    int length;
+
+    // Si ya trae salto de línea al final (como las tramas de DATA)
+    if (msgLen > 0 && message[msgLen - 1] == '\n') {
+        length = snprintf(frame, sizeof(frame), "%s", message);
+    } else {
+        length = snprintf(frame, sizeof(frame), "%s\n", message);
+    }
 
     if (length > 0 && (size_t)length < sizeof(frame)) {
+        printf("[FORWARD] Enviando trama limpia al socket %d: %s", socket, frame);
         send(socket, frame, (size_t)length, 0);
     }
 }
@@ -47,20 +56,27 @@ static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket)
 // La búsqueda y el guardado van dentro del mismo candado para que dos hilos no crean los dos que la ruta es nueva y la propaguen dos veces
 static int learnRoute(uint32_t ip, int sockfd) {
     uint32_t knownSocket = 0;
-    int isNew;
+    int isNew = 0;
 
     pthread_mutex_lock(&tableMutex);
-    isNew = (findRoute(ip, &knownSocket) != 0);
-    if (isNew) {
+    
+    // findRoute retorna 0 si la encontró
+    int found = (findRoute(ip, &knownSocket) == 0);
+
+    // Si no existía, O si existía pero el socket cambió/era una interfaz estática (ej. 1 != 4)
+    if (!found || knownSocket != (uint32_t)sockfd) {
         saveRoute(ip, (uint32_t)sockfd);
+        isNew = 1; // Para que avise a los vecinos si es un nuevo aprendizaje/actualización
     }
+    
     pthread_mutex_unlock(&tableMutex);
 
     return isNew;
 }
 
 void sendInitialAnnounce(void) {
-    announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
+    //announceToNeighbors(PROTOCOL_ANNOUNCE, getLocalIp(), -1);
+	printf("Aca va sendInitialAnnounce() pero le faltan cosas");
 }
 
 void sendInitialAdvertise(void) {
@@ -81,12 +97,12 @@ void sendInitialAdvertise(void) {
     }
 }
 
-void processPacket(const char *buffer, int sockfd) {
+void processPacket(const char *buffer, size_t length, int sockfd) {
     uint32_t destinationSocket = 0;
     RoutingMessage message;
     int found;
 
-    if (decodeFrame(buffer, strlen(buffer), &message) != 0) {
+    if (decodeFrame(buffer, length, &message) != 0) {
         return;  // El mensaje no es válido, se descarta
     }
 
@@ -108,7 +124,10 @@ void processPacket(const char *buffer, int sockfd) {
             pthread_mutex_unlock(&tableMutex);
 
             if (found == 0) {
+                printf("[FORWARD] Encontrada ruta para la IP destino. Reenviando por socket %u...\n", destinationSocket);
                 sendFrame((int)destinationSocket, buffer);
+            } else {
+                printf("[FORWARD] No se encontró ruta para la IP destino. Paquete descartado.\n");
             }
             break;
     }

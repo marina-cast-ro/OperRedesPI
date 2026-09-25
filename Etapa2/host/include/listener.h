@@ -6,7 +6,7 @@
 // Se conecta al puerto de escucha del router local (routerPort)
 // y mantiene el bucle recv() para recibir tramas DATA dirigidas a esta PC.
 // Usa decodeFrame() para parsear los paquetes.
-int keepListening(const char *routerIp, int routerPort);
+int keepListening(const char *routerIp, int routerPort, const char *hostLogicalIp);
 
 // Imprime en pantalla el mensaje recibido ya deserializado.
 void showMessage(const char* receivedMessage);

@@ -3,6 +3,7 @@
 // Arma una IP como número: IP(10, 0, 0, 2) es 10.0.0.2
 #define IP(a, b, c, d) (((uint32_t)(a) << 24) | ((uint32_t)(b) << 16) | ((uint32_t)(c) << 8) | (uint32_t)(d))
 
+/*
 int main(void) {
     uint32_t interfaceId = 0;
     virtualMemoryInit();
@@ -23,3 +24,5 @@ int main(void) {
     }
     return 0;
 }
+
+*/

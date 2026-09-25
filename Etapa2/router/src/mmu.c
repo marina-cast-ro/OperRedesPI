@@ -11,7 +11,7 @@ static TLBEntry tlb[TLB_SIZE];
 static uint8_t tlbNextVictim = 0; 
 
 void updateTLB(void) {
-	tlbNextVictim = (tlbNextVictim + 1) % TLB_SIZE;
+	tlbNextVictim = (uint8_t)((tlbNextVictim + 1) % TLB_SIZE);
 }
 
 void initMMU(void) {
@@ -68,4 +68,22 @@ uint32_t translateAddress(const uint32_t virtAddress) {
 		printf("[MMU] Page Fault! El numero de pagina es invalido.\n");
 		return MMU_ERROR;
 	}
+}
+
+void removeRouteBySocket(uint32_t socketFd) {
+    // 1. Limpiar en la Page Table
+    for (size_t i = 0; i < NUM_PAGES; i++) {
+        if (pageTable[i].valid && pageTable[i].pfn == (uint8_t)socketFd) {
+            pageTable[i].valid = false;
+            printf("[MMU] Pagina %zu invalidada en Page Table para socket %u\n", i, socketFd);
+        }
+    }
+
+    // 2. Limpiar en la TLB (si estaba en caché)
+    for (size_t i = 0; i < TLB_SIZE; i++) {
+        if (tlb[i].valid && tlb[i].pfn == (uint8_t)socketFd) {
+            tlb[i].valid = false;
+            printf("[MMU] Entrada %zu invalidada en TLB para socket %u\n", i, socketFd);
+        }
+    }
 }

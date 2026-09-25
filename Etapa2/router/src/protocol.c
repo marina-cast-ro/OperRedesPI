@@ -111,21 +111,14 @@ int decodeFrame(const void *frame, size_t length, RoutingMessage *message) {
 }
 
 int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize) {
-    // Se valida que los punteros no sean nulos y que el buffer tenga espacio
     if (message == NULL || buffer == NULL || bufferSize == 0) {
         return -1;
     }
 
-    // Variables auxiliares:
-    // - typeStr: texto del encabezado ("ANNOUNCE", "ADVERTISE" o "DATA")
-    // - ipBinary: IP en formato binario
-    // - isData: bandera para saber si la trama lleva el campo de datos
     const char *typeStr = NULL;
     uint32_t ipBinary = 0;
     int isData = 0;
 
-    // Se identifica el tipo de mensaje para definir la etiqueta de texto 
-    // para saber de cual campo extraer la IP
     switch (message->type) {
         case ROUTING_ANNOUNCEMENT:
             typeStr = PROTOCOL_ANNOUNCE;
@@ -141,16 +134,13 @@ int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize) 
             isData = 1;
             break;
         default:
-            // Si el tipo no coincide con ninguno del protocolo, se rechaza
             return -1;
     }
 
-    // La dirección IP 0.0.0.0 no es válida
     if (ipBinary == 0) {
         return -1;
     }
 
-    // Conversión de IP binaria a string usando inet_ntop
     struct in_addr address;
     address.s_addr = ipBinary;
     char ipText[INET_ADDRSTRLEN];
@@ -158,53 +148,42 @@ int encodeFrame(const RoutingMessage *message, char *buffer, size_t bufferSize) 
         return -1;
     }
 
-    // Si es de tipo ANNOUNCE o ADVERTISE):
+    // Casos ANNOUNCE / ADVERTISE
     if (!isData) {
-        // Se construye la cadena en el buffer de forma segura con snprintf
         int written = snprintf(buffer, bufferSize, "%s%c%s\n", typeStr, PROTOCOL_SEPARATOR, ipText);
-
-        // Se valida que la escritura no haya fallado (< 0) y que el mensaje haya cabido completo
-        // en el buffer (si written >= bufferSize significa que se cortó por falta de espacio)
         if (written < 0 || (size_t)written >= bufferSize) {
             return -1;
         }
-
-        return written;
+        return written; // 
     }
 
-    // Formato para DATA: DATA|IP|DATOS\n =================================
-
-    // Se obtiene la longitud de los datos
+    // Caso DATA
     size_t dataLen = 0;
     if (message->data != NULL) {
-        dataLen = message->dataLength > 0 ? message->dataLength : strlen(message->data);
+        dataLen = (message->dataLength > 0) ? message->dataLength : strlen(message->data);
     }
 
-    // Se calcula el espacio necesario: prefijo ("DATA|IP|") + datos + '\n' + '\0'
     size_t typeLen = strlen(typeStr);
     size_t ipLen = strlen(ipText);
-    size_t prefixLen = typeLen + 1 + ipLen + 1;
-    size_t totalNeeded = prefixLen + dataLen + 1 + 1;
+    size_t prefixLen = typeLen + 1 + ipLen + 1; // "DATA|IP|"
+    size_t totalBytes = prefixLen + dataLen + 1; // + '\n'
+    size_t totalNeeded = totalBytes + 1; // + '\0'
 
-    // Se valida que quepa en el buffer
     if (totalNeeded > bufferSize) {
         return -1;
     }
 
-    // SE escribe el prefijo "DATA|IP|"
     int prefixWritten = snprintf(buffer, bufferSize, "%s%c%s%c", typeStr, PROTOCOL_SEPARATOR, ipText, PROTOCOL_SEPARATOR);
     if (prefixWritten < 0 || (size_t)prefixWritten != prefixLen) {
         return -1;
     }
 
-    // Copiamos los datos si existen
     if (dataLen > 0 && message->data != NULL) {
         memcpy(buffer + prefixLen, message->data, dataLen);
     }
 
-    // Ponemos el salto de línea final y terminador nulo
     buffer[prefixLen + dataLen] = '\n';
     buffer[prefixLen + dataLen + 1] = '\0';
 
-    return (int)(prefixLen + dataLen + 1);
+    return (int)totalBytes; 
 }

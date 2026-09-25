@@ -11,7 +11,7 @@ static uint32_t readNumber(uint32_t address, int count) {
     uint32_t value = 0;
     for (int i = 0; i < count; i++) {
         uint8_t byte = 0;
-        mmuReadByte(address + i, &byte);
+        mmuReadByte(address + (uint32_t)i, &byte);
         value = (value << 8) | byte;
     }
     return value;
@@ -20,7 +20,7 @@ static uint32_t readNumber(uint32_t address, int count) {
 // Escribe un número en count bytes seguidos (count <= 4). El último byte es el más bajo
 static void writeNumber(uint32_t address, uint32_t value, int count) {
     for (int i = count - 1; i >= 0; i--) {
-        mmuWriteByte(address + i, value & 0xFF);
+        mmuWriteByte(address + (uint32_t)i, value & 0xFF);
         value >>= 8;
     }
 }
@@ -31,7 +31,7 @@ int saveRoute(uint32_t destinationIp, uint32_t interfaceId) {
     }
 
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
-        uint32_t routeAddress = i * ROUTE_SIZE;
+        uint32_t routeAddress = (uint32_t)i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
         // Se escribe en la primera ruta libre, o encima de la misma IP si ya estaba
@@ -46,7 +46,7 @@ int saveRoute(uint32_t destinationIp, uint32_t interfaceId) {
 
 int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId) {
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
-        uint32_t routeAddress = i * ROUTE_SIZE;
+        uint32_t routeAddress = (uint32_t)i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
         if (storedIp == 0) {
@@ -67,7 +67,7 @@ int getRouteIp(int index, uint32_t *destinationIp) {
         return -1;  // Fuera de la tabla
     }
 
-    storedIp = readNumber(index * ROUTE_SIZE, 4);
+    storedIp = readNumber((uint32_t)index * ROUTE_SIZE, 4);
     if (storedIp == 0) {
         return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
     }
