@@ -142,16 +142,21 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             }
             break;
 
-        case ROUTING_DATA:
+        case ROUTING_DATA: 
+            char destText[INET_ADDRSTRLEN];
+            struct in_addr addr;
+            addr.s_addr = message.destinationIp;
+            inet_ntop(AF_INET, &addr, destText, sizeof(destText));
+
             pthread_mutex_lock(&tableMutex);
             found = findRoute(message.destinationIp, &destinationSocket);
             pthread_mutex_unlock(&tableMutex);
 
+            printf("[DEBUG-DATA] Paquete DATA destinado a %s -> Salida por socket %u (Found: %d)\n", 
+                destText, destinationSocket, found);
+
             if (found == 0) {
-                printf("[FORWARD] Ruta encontrada. Reenviando por socket TCP %u...\n", destinationSocket);
                 sendFrameTCP((int)destinationSocket, buffer);
-            } else {
-                printf("[FORWARD] No se encontró ruta. Paquete descartado.\n");
             }
             break;
     }
