@@ -84,3 +84,95 @@ int sendMessage(const char *routerIp, int routerPort, const char *destIp, const 
     close(actualSocketFd);
     return 0;
 }
+
+int sendFile(const char *routerIp, int routerPort, const char *destIp, const char *filePath){
+    if (!routerIp || !destIp || !filePath) {
+        fprintf(stderr, "[SENDER] Parámetros inválidos para sendFile\n");
+        return -1;
+    }
+
+    FILE *file = fopen(filePath, "r");
+    if (!file) {
+        perror("[SENDER] Error al abrir el archivo");
+        return -1;
+    }
+
+    int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (actualSocketFd < 0) {
+        perror("[SENDER] socket");
+        fclose(file);
+        return -1;
+    }
+
+    struct sockaddr_in routerAddress;
+    initRouterAddress(&routerAddress, routerPort);
+
+    if (inet_pton(AF_INET, routerIp, &routerAddress.sin_addr) != 1) {
+        fprintf(stderr, "[SENDER] Dirección IP del router inválida: %s\n", routerIp);
+        close(actualSocketFd);
+        fclose(file);
+        return -1;
+    }
+
+    if (connect(actualSocketFd, (struct sockaddr *)&routerAddress, sizeof(routerAddress)) < 0) {
+        perror("[SENDER] connect");
+        close(actualSocketFd);
+        fclose(file);
+        return -1;
+    }
+
+    char line[900];
+    int linesSent = 0;
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        size_t len = strlen(line);
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+            line[len - 1] = '\0';
+            len--;
+        }
+
+        RoutingMessage msg;
+        if (buildFrame(destIp, line, &msg) != 0) {
+            fprintf(stderr, "[SENDER] Error en buildFrame con destIp: %s\n", destIp);
+            close(actualSocketFd);
+            fclose(file);
+            return -1;
+        }
+
+        char buffer[SENDER_BUFFER_SIZE];
+        int encodedBytes = encodeFrame(&msg, buffer, sizeof(buffer));
+        if (encodedBytes <= 0) {
+            fprintf(stderr, "[SENDER] Error en encodeFrame\n");
+            close(actualSocketFd);
+            fclose(file);
+            return -1;
+        }
+
+        ssize_t dataSent = send(actualSocketFd, buffer, (size_t)encodedBytes, 0);
+        if (dataSent < 0) {
+            perror("[SENDER] send");
+            close(actualSocketFd);
+            fclose(file);
+            return -1;
+        }
+
+        linesSent++;
+        usleep(2000);
+    }
+
+    if (linesSent == 0) {
+        RoutingMessage msg;
+        if (buildFrame(destIp, "", &msg) == 0) {
+            char buffer[SENDER_BUFFER_SIZE];
+            int encodedBytes = encodeFrame(&msg, buffer, sizeof(buffer));
+            if (encodedBytes > 0) {
+                send(actualSocketFd, buffer, (size_t)encodedBytes, 0);
+            }
+        }
+    }
+
+    fclose(file);
+    close(actualSocketFd);
+    printf("[SENDER] Archivo '%s' enviado exitosamente (%d líneas enviadas a %s)\n", filePath, linesSent, destIp);
+    return 0;
+}

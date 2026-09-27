@@ -7,4 +7,8 @@
 // y la envía al router asignado.
 int sendMessage(const char *routerIp, int routerPort, const char *destIp, const char *message);
 
+// Lee un archivo .txt línea por línea y envía cada línea como una trama DATA
+// al router asignado hacia la IP destino.
+int sendFile(const char *routerIp, int routerPort, const char *destIp, const char *filePath);
+
 #endif

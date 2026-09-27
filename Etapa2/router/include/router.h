@@ -19,10 +19,15 @@
 #define MAX_BUFFER_SIZE 1024   // Tamaño (carácteres) máximo de los datos a enviar/recibir
 #define MAX_PEERS         24   // Máximo de vecinos (basado en las personas aka I.P.'s del aula)
 
+#define MAX_CONFIG_NEIGHBORS 8   // Routers vecinos que se pueden anotar en config.txt
+
 // Struct de datos atributos del router
 typedef struct {
     uint32_t localIp;   // IP del router en formato binario (4 bytes)
     int port;           // Puerto de entrada de datos al router
+    int neighborCount;                          // Cuántos routers vecinos trae el config.txt
+    char neighborIp[MAX_CONFIG_NEIGHBORS][16];  // IP real (la del wifi) de cada router vecino
+    int neighborPort[MAX_CONFIG_NEIGHBORS];     // Puerto de cada router vecino
 } ConfigRouter;
 
 // Devuelve los sockets de los vecinos conectados.
@@ -41,5 +46,15 @@ void *listening(void *arg);
 
 // Detiene de forma limpia el hilo de escucha y cierra los sockets abiertos.
 void endRouterListen(ConfigRouter router);
+
+int getUdpSocket(void);
+
+// IP real de quien está del otro lado de un socket
+uint32_t getPeerIp(int fd);
+
+// Manda un mensaje como los otros grupos: abre una conexión TCP, manda y cierra
+int sendToIp(uint32_t ip, const char *data, size_t length);
+int getNeighborCount(void);
+int getNeighborInfo(int index, char *outIp, int *outPort);
 
 #endif  // ROUTER_H

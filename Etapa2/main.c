@@ -21,23 +21,24 @@ static void handleSigint(int sig) {
 
 static void printUsage(const char *programName){
     fprintf(stderr, "Uso:\n");
-    fprintf(stderr, "  %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", programName);
-    fprintf(stderr, "  %s --send <routerIp> <routerPort> <destIp> <mensaje>\n", programName);
+    fprintf(stderr, "  %s --listen <routerIp> <routerPort> [hostLogicalIp] [archivo_salida.txt]\n", programName);
+    fprintf(stderr, "  %s --send <routerIp> <routerPort> <destIp> <archivo.txt | mensaje>\n", programName);
     fprintf(stderr, "  %s --router <ruta-al-config.txt>\n", programName);
 }
 
 static int versionListen(int argc, char *argv[]){
-    if (argc < 4 || argc > 5){
-        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> [hostLogicalIp]\n", argv[0]);
+    if (argc < 4 || argc > 6){
+        fprintf(stderr, "Uso: %s --listen <routerIp> <routerPort> [hostLogicalIp] [archivo_salida.txt]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *routerIp = argv[2];
     int routerPort = atoi(argv[3]);
     // Si se pasa el argumento lo usa, si no, usa "10.0.0.100" por defecto
-    const char *hostLogicalIp = (argc == 5) ? argv[4] : "10.0.0.100";
+    const char *hostLogicalIp = (argc >= 5) ? argv[4] : "10.0.0.100";
+    const char *outputFile = (argc == 6) ? argv[5] : "output.txt";
 
-    if(keepListening(routerIp, routerPort, hostLogicalIp) != 0){
+    if(keepListening(routerIp, routerPort, hostLogicalIp, outputFile) != 0){
         fprintf(stderr, "Error al escuchar\n");
         return EXIT_FAILURE;
     }
@@ -46,18 +47,34 @@ static int versionListen(int argc, char *argv[]){
 
 static int versionSend(int argc, char *argv[]){
     if(argc != 6){
-        fprintf(stderr, "Uso: %s --send <routerIp> <routerPort> <destIp> <mensaje>\n", argv[0]);
+        fprintf(stderr, "Uso: %s --send <routerIp> <routerPort> <destIp> <archivo.txt | mensaje>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *routerIp = argv[2];
     int routerPort = atoi(argv[3]);
     const char *destIp = argv[4];
-    const char *message = argv[5];
+    const char *source = argv[5];
 
-    if(sendMessage(routerIp, routerPort, destIp, message) != 0){
-        fprintf(stderr, "Error al enviar el mensaje\n");
-        return EXIT_FAILURE;
+    // Verificar si el argumento corresponde a un archivo accesible
+    FILE *testFile = fopen(source, "r");
+    if (testFile != NULL) {
+        fclose(testFile);
+        printf("[SENDER] Enviando contenido del archivo: %s\n", source);
+        if (sendFile(routerIp, routerPort, destIp, source) != 0) {
+            fprintf(stderr, "Error al enviar el archivo\n");
+            return EXIT_FAILURE;
+        }
+    } else {
+        size_t sourceLen = strlen(source);
+        if (sourceLen >= 4 && strcmp(source + sourceLen - 4, ".txt") == 0) {
+            fprintf(stderr, "Error: No se pudo abrir el archivo .txt: %s\n", source);
+            return EXIT_FAILURE;
+        }
+        if (sendMessage(routerIp, routerPort, destIp, source) != 0) {
+            fprintf(stderr, "Error al enviar el mensaje\n");
+            return EXIT_FAILURE;
+        }
     }
     return EXIT_SUCCESS;
 }

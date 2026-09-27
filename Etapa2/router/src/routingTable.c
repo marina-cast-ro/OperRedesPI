@@ -1,12 +1,9 @@
 #include "routingTable.h"
+#include <arpa/inet.h>
 
-// Cada ruta ocupa 8 bytes seguidos en la memoria virtual, o sea una página entera de la MMU:
-//   bytes 0-3: IP destino | bytes 4-7: interfaz por la que se reenvía
-// Una ruta con IP destino 0 está libre, porque la memoria arranca en ceros.
 #define ROUTE_SIZE      8
 #define ROUTE_CAPACITY  (MEMORY_SIZE / ROUTE_SIZE)  // 32 rutas
 
-// Lee count bytes seguidos (count <= 4) y los junta en un número. El primero es el más alto
 static uint32_t readNumber(uint32_t address, int count) {
     uint32_t value = 0;
     for (int i = 0; i < count; i++) {
@@ -17,7 +14,6 @@ static uint32_t readNumber(uint32_t address, int count) {
     return value;
 }
 
-// Escribe un número en count bytes seguidos (count <= 4). El último byte es el más bajo
 static void writeNumber(uint32_t address, uint32_t value, int count) {
     for (int i = count - 1; i >= 0; i--) {
         mmuWriteByte(address + (uint32_t)i, value & 0xFF);
@@ -27,51 +23,69 @@ static void writeNumber(uint32_t address, uint32_t value, int count) {
 
 int saveRoute(uint32_t destinationIp, uint32_t interfaceId) {
     if (destinationIp == 0) {
-        return -1;  // La IP 0 es la marca de ruta libre
+        return -1;
     }
+
+    // Convertimos de Network Order a Host Order para almacenamiento uniforme
+    uint32_t hostIp = ntohl(destinationIp);
+    int firstFreeIndex = -1;
 
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
         uint32_t routeAddress = (uint32_t)i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
-        // Se escribe en la primera ruta libre, o encima de la misma IP si ya estaba
-        if (storedIp == 0 || storedIp == destinationIp) {
-            writeNumber(routeAddress, destinationIp, 4);
+        // Si la IP ya existe en la tabla, actualizamos su interfaz de salida
+        if (storedIp == hostIp) {
             writeNumber(routeAddress + 4, interfaceId, 4);
             return 0;
         }
+
+        // Guardamos la ubicación de la primera ranura libre
+        if (storedIp == 0 && firstFreeIndex == -1) {
+            firstFreeIndex = i;
+        }
     }
-    return -1;  // Tabla llena
+
+    // Si la ruta no existía, la escribimos en la primera ranura libre encontrada
+    if (firstFreeIndex != -1) {
+        uint32_t freeAddress = (uint32_t)firstFreeIndex * ROUTE_SIZE;
+        writeNumber(freeAddress, hostIp, 4);
+        writeNumber(freeAddress + 4, interfaceId, 4);
+        return 0;
+    }
+
+    return -1; // Tabla llena
 }
 
 int findRoute(uint32_t destinationIp, uint32_t *outInterfaceId) {
+    if (destinationIp == 0) return -1;
+
+    uint32_t hostIp = ntohl(destinationIp);
+
+    // Escaneo completo de la tabla sin frenar en 0 para evitar saltos por huecos
     for (int i = 0; i < ROUTE_CAPACITY; i++) {
         uint32_t routeAddress = (uint32_t)i * ROUTE_SIZE;
         uint32_t storedIp = readNumber(routeAddress, 4);
 
-        if (storedIp == 0) {
-            return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
-        }
-        if (storedIp == destinationIp) {
+        if (storedIp == hostIp) {
             *outInterfaceId = readNumber(routeAddress + 4, 4);
             return 0;
         }
     }
-    return -1;  // No está en la tabla
+    return -1; // No encontrada
 }
 
 int getRouteIp(int index, uint32_t *destinationIp) {
-    uint32_t storedIp;
-
     if (index < 0 || index >= ROUTE_CAPACITY) {
-        return -1;  // Fuera de la tabla
+        return -1;
     }
 
-    storedIp = readNumber((uint32_t)index * ROUTE_SIZE, 4);
+    uint32_t storedIp = readNumber((uint32_t)index * ROUTE_SIZE, 4);
     if (storedIp == 0) {
-        return -1;  // Las rutas se guardan seguidas, así que la primera libre es el final
+        return -1;
     }
 
-    *destinationIp = storedIp;
+    // Retornamos la IP convertida de vuelta a Network Byte Order
+    *destinationIp = htonl(storedIp);
     return 0;
 }

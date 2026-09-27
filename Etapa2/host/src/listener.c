@@ -15,16 +15,48 @@ static void initRouterAddress(struct sockaddr_in *routerAddress, int routerPort)
     routerAddress->sin_port = htons((uint16_t)routerPort);
 }
 
+static const char *g_outputFile = "output.txt";
+
+void saveMessageToFile(const char *filePath, const char *receivedMessage){
+    if (!filePath || !receivedMessage) return;
+    FILE *file = fopen(filePath, "a");
+    if (!file) {
+        perror("[HOST LISTENER] Error al escribir en el archivo");
+        return;
+    }
+    fprintf(file, "%s\n", receivedMessage);
+    fclose(file);
+}
+
+void showMessage(const char* receivedMessage){
+    printf("[MENSAJE]: %s\n", receivedMessage);
+}
+
 static void processMessage(RoutingMessage *msg){
     if(msg->type == ROUTING_DATA && msg->data != NULL){
         char dataToShow[msg->dataLength + 1];
         memcpy(dataToShow, msg->data, msg->dataLength);
         dataToShow[msg->dataLength] = '\0'; //le agregamos caracter nulo al final
         showMessage(dataToShow);
+        saveMessageToFile(g_outputFile, dataToShow);
     }
 }
 
-int keepListening(const char *routerIp, int routerPort, const char *hostLogicalIp){
+int keepListening(const char *routerIp, int routerPort, const char *hostLogicalIp, const char *outputFilePath){
+    if (outputFilePath && strlen(outputFilePath) > 0) {
+        g_outputFile = outputFilePath;
+    } else {
+        g_outputFile = "output.txt";
+    }
+
+    FILE *initFile = fopen(g_outputFile, "w");
+    if (initFile) {
+        fclose(initFile);
+        printf("[HOST LISTENER] Guardando datos recibidos en '%s'\n", g_outputFile);
+    } else {
+        perror("[HOST LISTENER] Advertencia: no se pudo inicializar archivo de salida");
+    }
+
     int actualSocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (actualSocketFd < 0) {
         perror("socket");
@@ -91,8 +123,4 @@ int keepListening(const char *routerIp, int routerPort, const char *hostLogicalI
     
     close(actualSocketFd);
     return 0;
-}
-
-void showMessage(const char* receivedMessage){
-    printf("[MENSAJE]: %s\n", receivedMessage);
 }
