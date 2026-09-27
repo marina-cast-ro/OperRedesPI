@@ -3,7 +3,22 @@
 static int          tcp_socket_fd = -1;
 static int          udp_socket_fd = -1;
 static pthread_t    listen_thread;
+static pthread_t    announce_thread;
 static volatile int running = 0;
+
+static void *announceRoutine(void *arg) {
+    (void)arg;
+    while (running) {
+        for (int i = 0; i < 10 && running; i++) {
+            sleep(1);
+        }
+        if (running) {
+            printf("[ROUTER] Enviando ANNOUNCE periódico (cada 10s)...\n");
+            sendInitialAnnounce();
+        }
+    }
+    return NULL;
+}
 
 static ConfigRouter g_routerConfig; // Copia global de la configuración para los getters
 
@@ -195,6 +210,11 @@ int initRouterListen(ConfigRouter router) {
     sendInitialAnnounce();
     sendInitialAdvertise();
 
+    // 6. Iniciar hilo de anuncio periódico cada 10s
+    if (pthread_create(&announce_thread, NULL, announceRoutine, NULL) != 0) {
+        perror("[ROUTER] Error creando hilo de anuncio periódico");
+    }
+
     printf("[ROUTER] Inicialización exitosa (UDP+TCP) en puerto %d\n", router.port);
     return 0;
 }
@@ -308,6 +328,7 @@ void endRouterListen(ConfigRouter router) {
     (void)router;
 
     running = 0;
+    pthread_join(announce_thread, NULL);
     pthread_join(listen_thread, NULL);
 
     pthread_mutex_lock(&peers_mutex);
