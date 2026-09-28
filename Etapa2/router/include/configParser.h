@@ -12,4 +12,7 @@ ConfigRouter parseConfigAndPreload(const char *filename);
 // Retorna la IP propia del router que se leyó de config.txt
 uint32_t getLocalIp(void);
 
+// Verifica si la IP corresponde a un host directamente conectado a este router
+int isLocalHost(uint32_t ip);
+
 #endif

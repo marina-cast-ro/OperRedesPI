@@ -8,8 +8,20 @@
 
 static uint32_t savedLocalIp = 0;  // La IP propia, guardada para el ANNOUNCE
 
+#define MAX_LOCAL_HOSTS 16
+static uint32_t local_hosts_ips[MAX_LOCAL_HOSTS];
+static int local_hosts_count = 0;
+
 uint32_t getLocalIp(void) {
     return savedLocalIp;
+}
+
+int isLocalHost(uint32_t ip) {
+    if (ip == savedLocalIp) return 1;
+    for (int i = 0; i < local_hosts_count; i++) {
+        if (local_hosts_ips[i] == ip) return 1;
+    }
+    return 0;
 }
 
 // Lee config.txt y precarga los vecinos en la MMU con saveRoute()
@@ -66,6 +78,9 @@ ConfigRouter parseConfigAndPreload(const char *filename) {
                 struct in_addr addr;
                 if (inet_pton(AF_INET, ip_str, &addr) == 1) {
                     saveRoute(addr.s_addr, interface);
+                    if (local_hosts_count < MAX_LOCAL_HOSTS) {
+                        local_hosts_ips[local_hosts_count++] = addr.s_addr;
+                    }
                 }
             }
         }

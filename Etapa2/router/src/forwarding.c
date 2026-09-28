@@ -69,6 +69,7 @@ static int learnRoute(uint32_t ip, int sockfd) {
     int isNew = 0;
 
     if (sockfd <= 0 || ip == 0) return 0;
+    if (isLocalHost(ip)) return 0; // Protegemos las rutas locales de ser sobreescritas
 
     pthread_mutex_lock(&tableMutex);
     
@@ -107,6 +108,36 @@ void sendInitialAnnounce(void) {
     }
 }
 
+static void sendTableToSocket(int targetSocket) {
+    uint32_t hostIp;
+    uint32_t routeSocket = 0;
+    int index = 0;
+
+    while (1) {
+        pthread_mutex_lock(&tableMutex);
+        int found = getRouteIp(index, &hostIp);
+        if (found == 0) {
+            findRoute(hostIp, &routeSocket);
+        }
+        pthread_mutex_unlock(&tableMutex);
+
+        if (found != 0) break;
+
+        // Split Horizon: No devolver rutas aprendidas desde este mismo vecino
+        if (routeSocket != (uint32_t)targetSocket) {
+            char message[MAX_BUFFER_SIZE];
+            char ipText[INET_ADDRSTRLEN];
+            struct in_addr address;
+            address.s_addr = hostIp;
+            inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
+            snprintf(message, sizeof(message), "%s%c%s", PROTOCOL_ADVERTISE, PROTOCOL_SEPARATOR, ipText);
+            
+            sendFrameTCP(targetSocket, message);
+        }
+        index++;
+    }
+}
+
 void sendInitialAdvertise(void) {
     uint32_t hostIp;
     int index = 0;
@@ -142,8 +173,8 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             if (learnRoute(message.announcedIp, sockfd)) {
                 announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, sockfd);
             }
-            // Los compañeros pidieron que SIEMPRE que se reciba un ANNOUNCE se responda con ADVERTISE
-            sendInitialAdvertise();
+            // Responder con la tabla solo al vecino que envió el ANNOUNCE (con Split Horizon)
+            sendTableToSocket(sockfd);
             break;
 
         case ROUTING_ADVERTISEMENT:
