@@ -9,11 +9,11 @@ static volatile int running = 0;
 static void *announceRoutine(void *arg) {
     (void)arg;
     while (running) {
-        for (int i = 0; i < 10 && running; i++) {
+        for (int i = 0; i < 25 && running; i++) {
             sleep(1);
         }
         if (running) {
-            printf("[ROUTER] Enviando ANNOUNCE periódico (cada 10s)...\n");
+            printf("[ROUTER] Enviando ANNOUNCE periódico (cada 25s)...\n");
             sendInitialAnnounce();
         }
     }
