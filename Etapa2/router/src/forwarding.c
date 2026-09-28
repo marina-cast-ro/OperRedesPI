@@ -69,7 +69,6 @@ static int learnRoute(uint32_t ip, int sockfd) {
     int isNew = 0;
 
     if (sockfd <= 0 || ip == 0) return 0;
-    if (isLocalHost(ip)) return 0; // Protegemos las rutas locales de ser sobreescritas
 
     pthread_mutex_lock(&tableMutex);
     
@@ -178,6 +177,9 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             break;
 
         case ROUTING_ADVERTISEMENT:
+            // Proteger rutas de hosts locales de ser sobreescritas por rebotes de vecinos
+            if (isLocalHost(message.announcedIp)) break;
+
             if (learnRoute(message.announcedIp, sockfd)) {
                 announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, sockfd);
             }
