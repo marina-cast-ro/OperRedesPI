@@ -9,10 +9,7 @@
 
 static pthread_mutex_t tableMutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Envío TCP genérico a un socket ya abierto (Listener / PC local)
-static void sendFrameTCP(int socket, const char *message) {
-    if (socket <= 0) return;
-
+static void sendFrame(uint32_t targetIp, uint32_t nextHop, const char *message) {
     char frame[MAX_BUFFER_SIZE];
     size_t msgLen = strlen(message);
     int length;
@@ -22,10 +19,20 @@ static void sendFrameTCP(int socket, const char *message) {
     } else {
         length = snprintf(frame, sizeof(frame), "%s\n", message);
     }
+    if (length <= 0 || (size_t)length >= sizeof(frame)) return;
 
-    if (length > 0 && (size_t)length < sizeof(frame)) {
-        printf("[FORWARD-TCP] Enviando trama limpia al socket %d: %s", socket, frame);
+    if (isLocalHost(targetIp)) {
+        // nuestro propio host: usar el socket persistente que ya tiene abierto
+        int socket = (int)nextHop;
+        if (socket <= 0) return;
+        printf("[FORWARD-TCP] Enviando (persistente) al socket %d: %s", socket, frame);
         send(socket, frame, (size_t)length, MSG_NOSIGNAL);
+    } else {
+        // vecino router: conexión nueva por mensaje
+        int port = getNeighborPortForIp(nextHop);
+        if (port <= 0) return;
+        printf("[FORWARD-TCP] Enviando (conexion nueva) a vecino, puerto %d: %s", port, frame);
+        sendToIpPort(nextHop, port, frame, (size_t)length);
     }
 }
 
@@ -46,39 +53,44 @@ static void sendAnnounceUDP(uint32_t targetIp, int port, const char *message) {
     sendto(sock, frame, strlen(frame), 0, (struct sockaddr *)&dest, sizeof(dest));
 }
 
-static void announceToNeighbors(const char *type, uint32_t ip, int exceptSocket) {
+static void announceToNeighbors(const char *type, uint32_t ip, uint32_t exceptNextHop) {
     char message[MAX_BUFFER_SIZE];
     char ipText[INET_ADDRSTRLEN];
-    int sockets[MAX_NEIGHBORS];
     struct in_addr address;
 
     address.s_addr = ip;
     inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
     snprintf(message, sizeof(message), "%s%c%s", type, PROTOCOL_SEPARATOR, ipText);
 
-    int count = getNeighborSockets(sockets, MAX_NEIGHBORS);
+    int count = getNeighborCount();
     for (int i = 0; i < count; i++) {
-        if (sockets[i] != exceptSocket) {
-            sendFrameTCP(sockets[i], message);
-        }
+        char neighborIpStr[16];
+        int neighborPort = 0;
+        if (getNeighborInfo(i, neighborIpStr, &neighborPort) != 0) continue;
+
+        struct in_addr na;
+        if (inet_pton(AF_INET, neighborIpStr, &na) != 1) continue;
+        if (na.s_addr == exceptNextHop) continue;  // split horizon
+
+        sendToIpPort(na.s_addr, neighborPort, message, strlen(message));
     }
 }
 
 static int learnRoute(uint32_t ip, int sockfd) {
-    uint32_t knownSocket = 0;
+    uint32_t knownNextHop = 0;
     int isNew = 0;
 
     if (sockfd <= 0 || ip == 0) return 0;
 
-    pthread_mutex_lock(&tableMutex);
-    
-    int found = (findRoute(ip, &knownSocket) == 0);
+    uint32_t nextHop = isLocalHost(ip) ? (uint32_t)sockfd : getPeerIp(sockfd);
+    if (nextHop == 0) return 0;   // no pudimos identificar al vecino, no aprendemos nada
 
-    if (!found || knownSocket != (uint32_t)sockfd) {
-        saveRoute(ip, (uint32_t)sockfd);
+    pthread_mutex_lock(&tableMutex);
+    int found = (findRoute(ip, &knownNextHop) == 0);
+    if (!found || knownNextHop != nextHop) {
+        saveRoute(ip, nextHop);
         isNew = 1;
     }
-
     pthread_mutex_unlock(&tableMutex);
 
     return isNew;
@@ -107,31 +119,47 @@ void sendInitialAnnounce(void) {
     }
 }
 
-static void sendTableToSocket(int targetSocket) {
-    uint32_t hostIp;
-    uint32_t routeSocket = 0;
+static void sendTableToSocket(int announceSockfd) {
+    int isNeighbor = (announceSockfd == getUdpSocket());
+
+    uint32_t announcerIp = 0;
+    int announcerPort = 0;
+
+    if (isNeighbor) {
+        announcerIp = getPeerIp(announceSockfd);
+        announcerPort = getNeighborPortForIp(announcerIp);
+        if (announcerPort <= 0) return;
+    }
+
+    uint32_t hostIp, routeNextHop;
     int index = 0;
 
     while (1) {
         pthread_mutex_lock(&tableMutex);
         int found = getRouteIp(index, &hostIp);
-        if (found == 0) {
-            findRoute(hostIp, &routeSocket);
-        }
+        if (found == 0) findRoute(hostIp, &routeNextHop);
         pthread_mutex_unlock(&tableMutex);
-
         if (found != 0) break;
 
-        // Split Horizon: No devolver rutas aprendidas desde este mismo vecino
-        if (routeSocket != (uint32_t)targetSocket) {
+        int skip = isNeighbor && (routeNextHop == announcerIp);  // split horizon solo aplica entre routers
+
+        if (!skip) {
             char message[MAX_BUFFER_SIZE];
             char ipText[INET_ADDRSTRLEN];
             struct in_addr address;
             address.s_addr = hostIp;
             inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
             snprintf(message, sizeof(message), "%s%c%s", PROTOCOL_ADVERTISE, PROTOCOL_SEPARATOR, ipText);
-            
-            sendFrameTCP(targetSocket, message);
+
+            if (isNeighbor) {
+                sendToIpPort(announcerIp, announcerPort, message, strlen(message));
+            } else {
+                char frame[MAX_BUFFER_SIZE];
+                int len = snprintf(frame, sizeof(frame), "%s\n", message);
+                if (len > 0 && (size_t)len < sizeof(frame)) {
+                    send(announceSockfd, frame, (size_t)len, MSG_NOSIGNAL);
+                }
+            }
         }
         index++;
     }
@@ -148,7 +176,7 @@ void sendInitialAdvertise(void) {
 
         if (found != 0) break;
 
-        announceToNeighbors(PROTOCOL_ADVERTISE, hostIp, -1);
+        announceToNeighbors(PROTOCOL_ADVERTISE, hostIp, 0);
         index++;
     }
 }
@@ -169,19 +197,19 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
 
     switch (message.type) {
         case ROUTING_ANNOUNCEMENT:
-            if (learnRoute(message.announcedIp, sockfd)) {
-                announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, sockfd);
+             if (learnRoute(message.announcedIp, sockfd)) {
+                announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, getPeerIp(sockfd));
             }
-            // Responder con la tabla solo al vecino que envió el ANNOUNCE (con Split Horizon)
             sendTableToSocket(sockfd);
             break;
+        
 
         case ROUTING_ADVERTISEMENT:
             // Proteger rutas de hosts locales de ser sobreescritas por rebotes de vecinos
             if (isLocalHost(message.announcedIp)) break;
 
             if (learnRoute(message.announcedIp, sockfd)) {
-                announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, sockfd);
+                announceToNeighbors(PROTOCOL_ADVERTISE, message.announcedIp, getPeerIp(sockfd));
             }
             break;
 
@@ -191,8 +219,7 @@ void processPacket(const char *buffer, size_t length, int sockfd) {
             pthread_mutex_unlock(&tableMutex);
 
             if (found == 0 && destinationSocket > 0) {
-                printf("[FORWARD] Ruta encontrada hacia socket %u. Reenviando por TCP...\n", destinationSocket);
-                sendFrameTCP((int)destinationSocket, buffer);
+                sendFrame(message.destinationIp, destinationSocket, buffer);
             } else {
                 printf("[FORWARD] No se encontró ruta. Paquete DATA descartado.\n");
             }

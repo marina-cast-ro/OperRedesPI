@@ -72,38 +72,21 @@ static void removePeer(int fd) {
     pthread_mutex_unlock(&peers_mutex);
 }
 
-static int connectToNeighborTCP(const char *ip, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons((uint16_t)port);
-
-    if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1 || connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(fd);
-        return -1;
-    }
-    if (fd < 1024) peer_ips[fd] = addr.sin_addr.s_addr;
-    return fd;
-}
-
 uint32_t getPeerIp(int fd) {
     return (fd >= 0 && fd < 1024) ? peer_ips[fd] : 0;
 }
 
-int sendToIp(uint32_t ip, const char *data, size_t length) {
+int sendToIpPort(uint32_t ip, int port, const char *data, size_t length) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
 
-    struct timeval timeout = {1, 0};  // Si no contesta, no quedarse pegado
+    struct timeval timeout = {1, 0};
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons((uint16_t)g_routerConfig.port);
+    addr.sin_port = htons((uint16_t)port);
     addr.sin_addr.s_addr = ip;
 
     int sent = connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 &&
@@ -196,21 +179,12 @@ int initRouterListen(ConfigRouter router) {
         return -1;
     }
 
-    // 4. Conectar TCP con vecinos
-    for (int i = 0; i < router.neighborCount; i++) {
-        int fd = connectToNeighborTCP(router.neighborIp[i], router.neighborPort[i]);
-        if (fd >= 0) {
-            addPeer(fd);
-            printf("[ROUTER] Conectado TCP al vecino %s:%d por el socket %d\n",
-                   router.neighborIp[i], router.neighborPort[i], fd);
-        }
-    }
 
-    // 5. Envío Inicial
+    // 4. Envío Inicial
     sendInitialAnnounce();
     sendInitialAdvertise();
 
-    // 6. Iniciar hilo de anuncio periódico cada 10s
+    // 5. Iniciar hilo de anuncio periódico cada 10s
     if (pthread_create(&announce_thread, NULL, announceRoutine, NULL) != 0) {
         perror("[ROUTER] Error creando hilo de anuncio periódico");
     }
@@ -344,4 +318,14 @@ void endRouterListen(ConfigRouter router) {
     if (udp_socket_fd != -1) close(udp_socket_fd);
 
     printf("[ROUTER] Finalización de escucha del router\n");
+}
+
+int getNeighborPortForIp(uint32_t ip) {
+    for (int i = 0; i < g_routerConfig.neighborCount; i++) {
+        struct in_addr a;
+        if (inet_pton(AF_INET, g_routerConfig.neighborIp[i], &a) == 1 && a.s_addr == ip) {
+            return g_routerConfig.neighborPort[i];
+        }
+    }
+    return 0;
 }

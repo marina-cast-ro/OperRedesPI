@@ -53,8 +53,9 @@ int getUdpSocket(void);
 uint32_t getPeerIp(int fd);
 
 // Manda un mensaje como los otros grupos: abre una conexión TCP, manda y cierra
-int sendToIp(uint32_t ip, const char *data, size_t length);
+int sendToIpPort(uint32_t ip, int port, const char *data, size_t length);
 int getNeighborCount(void);
 int getNeighborInfo(int index, char *outIp, int *outPort);
+int getNeighborPortForIp(uint32_t ip);
 
 #endif  // ROUTER_H
