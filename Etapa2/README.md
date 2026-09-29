@@ -177,10 +177,10 @@ hostname -I
 ``` bash
 
 # Ejecución para el arranque del dispositivo receptor (guarda en output.txt por defecto)
-./build/routing --listen <IP de la computadora> 8080 <IP Host>
+./build/routing --listen <IP de la computadora> 5005 <IP Host>
 
 # Ejecución especificando un archivo .txt de salida
-./build/routing --listen <IP de la computadora> 8080 <IP Host> archivo_salida.txt
+./build/routing --listen <IP de la computadora> 5005 <IP Host> archivo_salida.txt
 
 ```
 
@@ -195,10 +195,10 @@ hostname -I
 ``` bash
 
 # 1. Envío de un archivo .txt (lee y envía el contenido del archivo)
-./build/routing --send <IP real del router> 8080 <IP Host> archivo.txt
+./build/routing --send <IP real del router> 5005 <IP Host> archivo.txt
 
 # 2. Envío de datos en texto plano / string directo
-./build/routing --send <IP real del router> 8080 <IP Host> "Prueba local"
+./build/routing --send <IP real del router> 5005 <IP Host> "Prueba local"
 
 ```
 
