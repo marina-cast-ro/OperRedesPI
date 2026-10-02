@@ -1,0 +1,131 @@
+Current configuration : 2030 bytes
+!
+version 12.2
+no service pad
+service timestamps debug uptime
+service timestamps log uptime
+no service password-encryption
+!
+hostname koopatroopas
+!
+!
+no aaa new-model
+system mtu routing 1500
+vtp mode transparent
+ip subnet-zero
+ip dhcp excluded-address 172.16.20.1 172.16.20.99
+ip dhcp excluded-address 172.16.20.200 172.16.20.254
+!
+ip dhcp pool POOL-ISLA2-VLAN20
+   network 172.16.20.0 255.255.255.0
+   default-router 172.16.20.1 
+   dns-server 8.8.8.8 
+!         
+!         
+!         
+!         
+no file verify auto
+spanning-tree mode pvst
+spanning-tree extend system-id
+!         
+vlan internal allocation policy ascending
+!         
+vlan 10   
+ name Pirateados
+!         
+vlan 20   
+ name N0  
+!         
+vlan 30   
+ name Shell
+!         
+vlan 40   
+ name 4bits
+!         
+vlan 50   
+ name Pi_de_frambuesa
+!         
+vlan 99   
+ name Gestion-Admin
+!         
+interface FastEthernet0/1
+ description TRONCAL_HACIA_INTERMEDIARIO_LINUX
+ switchport trunk allowed vlan 20,99,112
+ switchport mode trunk
+!         
+interface FastEthernet0/2
+ description CLIENTE_A_EMISOR
+ switchport access vlan 20
+ switchport mode access
+ spanning-tree portfast
+!         
+interface FastEthernet0/3
+!         
+interface FastEthernet0/4
+!         
+interface FastEthernet0/5
+! 
+interface FastEthernet0/6
+!         
+interface FastEthernet0/7
+!         
+interface FastEthernet0/8
+!         
+interface FastEthernet0/9
+ description SERVIDOR_RECEPTOR
+ switchport access vlan 20
+ switchport mode access
+ spanning-tree portfast
+!         
+interface FastEthernet0/10
+!         
+interface FastEthernet0/11
+!         
+interface FastEthernet0/12
+!         
+interface FastEthernet0/13
+!         
+interface FastEthernet0/14
+!
+interface FastEthernet0/15
+!
+interface FastEthernet0/16
+!
+interface FastEthernet0/17
+!
+interface FastEthernet0/18
+!
+interface FastEthernet0/19
+!
+interface FastEthernet0/20
+!
+interface FastEthernet0/21
+!
+interface FastEthernet0/22
+!
+interface FastEthernet0/23
+!
+interface FastEthernet0/24
+!
+interface GigabitEthernet0/1
+!
+interface GigabitEthernet0/2
+!
+interface Vlan1
+ no ip address
+ no ip route-cache
+!
+interface Vlan99
+ description GESTION_SWITCH
+ ip address 172.16.99.2 255.255.255.0
+ no ip route-cache
+!
+ip http server
+!
+control-plane
+!
+!
+line con 0
+line vty 5 15
+!
+end

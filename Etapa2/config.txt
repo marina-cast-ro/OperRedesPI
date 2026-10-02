@@ -3,27 +3,21 @@
 # ==========================================
 # Configuración del Router Local
 # ==========================================
-local_ip: 192.168.122.1
+local_ip: 10.1.35.16
 port: 5005
 
 # ==========================================
 # Hosts Locales Directos (IP:Interfaz)
 # ==========================================
 host: 10.0.0.100:1
-host: 10.0.0.150:2
-
-#host: 10.1.35.13:1
-#host: 10.0.0.100:2
-#host: 10.0.0.101:3
-#host: 10.0.0.102:4
+host: 10.0.0.101:2
+host: 10.0.0.102:3
+host: 10.1.35.15:4
 
 # ==========================================
 # Routers vecinos (IP real del wifi y puerto)
 # ==========================================
-neighbor: 192.168.122.126 5005 #VM
-
-
-#neighbor: 10.1.35.13 5005 #SEBAS
-#neighbor: 10.1.35.21 5005 #MARCO
-#neighbor: 10.1.35.7 5005 #FIORELLA
-#neighbor: 10.1.35.12 5005 # Otro Marco
+neighbor: 10.1.35.17 5005      # SI MIN
+neighbor: 10.1.35.21 5005      # MARCO (PIRATEADOS)
+neighbor: 10.1.35.7 5005       # FIORELLA
+neighbor: 10.1.35.12 5005      # MARCO (SHELL)
