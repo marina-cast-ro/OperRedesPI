@@ -1,0 +1,5 @@
+# Extensiones del certificado de un nodo emisor/receptor (punto A del diseño).
+# La usa firmar-certificado.sh con: openssl x509 -req ... -extfile nodo-ext.cnf
+# No es CA, y su llave solo sirve para firmar (los ROA)
+basicConstraints = critical, CA:FALSE
+keyUsage         = critical, digitalSignature
