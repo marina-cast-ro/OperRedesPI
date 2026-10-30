@@ -1,0 +1,28 @@
+{
+  "mi_id": 1,
+  "nombre": "Koopatroopas",
+  "puerto_tcp": 5005,
+  "intervalo_announce_seg": 30,
+  "tolerancia_silencio_seg": 90,
+  "ttl_inicial": 8,
+  "vecinos": {
+    "3": {
+      "nombre": "4bits",
+      "ip": "10.0.3.1",
+      "puerto": 5005,
+      "costo": 5
+    },
+    "4": {
+      "nombre": "Pirateados",
+      "ip": "10.0.4.1",
+      "puerto": 5005,
+      "costo": 2
+    },
+    "5": {
+      "nombre": "Pi de Frambuesa",
+      "ip": "10.0.5.1",
+      "puerto": 5005,
+      "costo": 2
+    }
+  }
+}
