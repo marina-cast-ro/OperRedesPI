@@ -1,7 +1,5 @@
 # Punto E: validación de ROAs en el enrutador
 
-Pseudocódigo común según el punto E, la Parte II (Protocolo Repo-Router) y la validación del punto B del Doc.
-
 ```
 // Parámetros
 PUERTO = 9000     PERIODO = 75 s     ESPERA_INICIAL = azar(0, 75) s     TIMEOUT = 10 s
