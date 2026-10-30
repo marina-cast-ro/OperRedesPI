@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
@@ -18,6 +19,26 @@ X509_STORE *loadTrustStore(const char *path) {
         return NULL;
     }
     return store;
+}
+
+int reloadTrustStoreIfChanged(const char *path, X509_STORE **store, time_t *lastModified) {
+    struct stat info;
+    if (stat(path, &info) != 0) {
+        return -1;
+    }
+    // actualizar-truststore.sh reemplaza el archivo con un mv, así que cada actualización cambia la fecha
+    if (*store != NULL && info.st_mtime == *lastModified) {
+        return 0;
+    }
+    X509_STORE *fresh = loadTrustStore(path);
+    if (fresh == NULL) {
+        // No se actualiza lastModified, así que en la próxima llamada se vuelve a intentar
+        return -1;
+    }
+    X509_STORE_free(*store);
+    *store = fresh;
+    *lastModified = info.st_mtime;
+    return 1;
 }
 
 X509 *certFromFile(const char *path) {

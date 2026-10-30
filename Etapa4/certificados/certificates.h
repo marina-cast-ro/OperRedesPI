@@ -13,6 +13,14 @@
 // Se libera con X509_STORE_free
 X509_STORE *loadTrustStore(const char *path);
 
+// Vuelve a cargar trusted-roots.pem solo si el archivo cambió desde la última carga, por ejemplo porque
+// actualizar-truststore.sh agregó la CA de otro grupo. Así el router y el repositorio ven las raíces nuevas
+// sin reiniciarse. Se llama al inicio de cada ciclo. La primera vez, *store en NULL y *lastModified en 0.
+// Retorna 1 si cargó raíces nuevas (el store anterior ya quedó liberado), 0 si el archivo no cambió,
+// y -1 si no se pudo leer (se conserva el store anterior). Si varios hilos usan el store, quien llama
+// tiene que proteger el cambio con un candado
+int reloadTrustStoreIfChanged(const char *path, X509_STORE **store, time_t *lastModified);
+
 // Lee un certificado PEM desde un archivo (por ejemplo nodo-AS65002-201.crt).
 // Retorna NULL si no se pudo. Se libera con X509_free
 X509 *certFromFile(const char *path);
