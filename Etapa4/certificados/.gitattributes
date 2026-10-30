@@ -1,0 +1,4 @@
+# Los scripts y las configuraciones de OpenSSL tienen que quedar con saltos de línea de Linux (LF),
+# aunque se hagan checkout en Windows. Con CRLF, bash falla con «$'\r': command not found»
+*.sh  text eol=lf
+*.cnf text eol=lf
