@@ -1,0 +1,18 @@
+# Configuración de la CA raíz de Koopatroopas (punto A del diseño).
+# La usa crear-ca.sh con: openssl req -new -x509 -config ca-ext.cnf ...
+[ req ]
+prompt             = no
+distinguished_name = dn_ca
+x509_extensions    = ext_ca
+
+# Subject = Issuer, porque la raíz se firma a sí misma
+[ dn_ca ]
+C  = CR
+O  = Koopatroopas
+CN = CA-Koopatroopas
+
+# Es CA, pero no puede firmar otras CA (pathlen:0). Solo firma certificados y CRL, nunca ROA
+[ ext_ca ]
+basicConstraints     = critical, CA:TRUE, pathlen:0
+keyUsage             = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
