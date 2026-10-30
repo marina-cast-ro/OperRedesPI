@@ -40,9 +40,9 @@ documentación, diseño e implementación de cada etapa.
 | Etapa | Descripción                                | Estado      |
 | ----- | ------------------------------------------ | ----------- |
 | 1     | Del Raspberry Pi a la base de datos        | Completada  |
-| 2     | Construcción de las tablas de enrutamiento | En progreso |
-| 3     | -                                          | -           |
-| 4     | -                                          | -           |
+| 2     | Construcción de las tablas de enrutamiento | Completada  |
+| 3     | Diseño de RPKI                             | Completada  |
+| 4     | Implementación de RPKI                     | En progreso |
 | 5     | -                                          | -           |
 
 ## Instrucciones de Uso
@@ -88,3 +88,19 @@ python3 simulateSensor.py <ip_dest> <puerto> --interval <segundos> --motion-ever
 _Pendiente: instrucciones de compilación y ejecución._
 
 > Ubicarse dentro de la carpeta Etapa2/
+
+### Etapa 4
+
+#### Certificados
+
+> Ubicarse dentro de la carpeta Etapa4/certificados/ (requiere `sudo apt install libssl-dev`)
+
+``` bash
+
+# Crear la CA del grupo (una sola vez)
+bash crear-ca.sh
+
+# Compilación de la prueba del módulo de certificados
+make
+
+```
