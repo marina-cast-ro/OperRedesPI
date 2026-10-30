@@ -2,7 +2,10 @@
 
 ```
 // Parámetros
-PUERTO = 9000     PERIODO = 75 s     ESPERA_INICIAL = azar(0, 75) s     TIMEOUT = 10 s
+PUERTO = 9000
+PERIODO = 75 s
+ESPERA_INICIAL = azar(0, 75) s
+TIMEOUT = 10 s
 
 // Compartido entre los dos hilos, protegido con lectores-escritores
 tabla = vacía                 // ip -> (isla, vence)
@@ -11,15 +14,15 @@ versionLocal = -1
 // Hilo sincronizador (escritor)
 dormir(ESPERA_INICIAL)
 cada PERIODO:
-    resp = repo("LIST")                          // OK|<version>|<n> + n líneas ROA
+    resp = repo("LIST") // OK|<version>|<n> + n líneas ROA
     si falla, timeout o llegan menos de n líneas: se conserva la tabla anterior
     si resp.version == versionLocal: no se hace nada
-    nueva = vacía                                // se arma fuera del candado
+    nueva = vacía // se arma fuera del candado
     para cada roa en resp:
         si validarROA(roa): nueva[roa.ip] = (roa.isla, roa.vence)
         si no: registrar el motivo
     bloquear escritura
-        tabla = nueva                            // double buffering
+        tabla = nueva // double buffering
         versionLocal = resp.version
     desbloquear
 
