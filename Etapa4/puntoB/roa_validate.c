@@ -13,9 +13,9 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
-/** static void poner_err(char *err, size_t n, const char *msg) {
+static void poner_err(char *err, size_t n, const char *msg) {
     if (err && n) snprintf(err, n, "%s", msg);
-} */
+}
 
 /* ---------------- base64 ---------------- */
 
@@ -67,9 +67,16 @@ static int ipv4_valida(const char *s) {
 int roa_parsear(const char *linea, roa_t *out, char *err, size_t errlen) {
     memset(out, 0, sizeof *out);
     char *copia = strdup(linea);
-    if (!copia) { poner_err(err, errlen, "sin memoria"); return -1; }
+
+    if (!copia) { 
+		poner_err(err, errlen, "sin memoria"); 
+		return -1;
+	}
+
     size_t l = strlen(copia);
-    while (l && (copia[l - 1] == '\n' || copia[l - 1] == '\r')) copia[--l] = '\0';
+
+    while (l && (copia[l - 1] == '\n' || copia[l - 1] == '\r')) 
+		copia[--l] = '\0';
 
     char *campo[8];
     int n = 0;
@@ -131,7 +138,7 @@ void roa_liberar(roa_t *r) {
     free(r->texto_firmado);
     free(r->firma);
     memset(r, 0, sizeof *r);
-}*/
+}
 
 /* ---------------- truststore ---------------- */
 

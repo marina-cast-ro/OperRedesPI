@@ -7,8 +7,7 @@
 
 // ========================= STRUCTS =========================
 /** ROA separado en campos bajo el formato:
- *  ROA|IP|ISLA|NUM_EMISOR|EMISION|VENCE|FIRMA 
- */
+    ROA|IP|ISLA|NUM_EMISOR|EMISION|VENCE|FIRMA */
 typedef struct {
     char ip[16];
     int  isla;
@@ -44,15 +43,6 @@ roa_veredicto_t roa_validar_cadena(X509 *cert, const roa_trusted_roots_t *raices
 
 /* Punto B, pasos 2 a 6 de la validacion de un ROA. 'cert' viene de CERT|<num_emisor>. */
 roa_veredicto_t roa_validar(const roa_t *roa, X509 *cert, const roa_trusted_roots_t *raices, time_t ahora, const char **motivo);
-
-/* Resultado de validar un ROA. Los "recuperables" pueden cambiar sin que cambie la
-* version del repositorio (llego una raiz nueva al truststore, el reloj se ajusto...),
-* asi que el sincronizador no debe dar por buena la version si ve alguno. */
-typedef enum {
-ROA_OK = 0,
-ROA_RECHAZADO, /* definitivo para esta version del repositorio */
-ROA_RECHAZADO_RECUPERABLE
-} roa_veredicto_t;
 
 /* --- Parseo --- */
 /* 0 si esta bien; -1 si el formato es incorrecto (escribe el motivo en err). */

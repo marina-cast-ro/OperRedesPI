@@ -12,8 +12,12 @@ int main(int c, char **v) {
 		return 2;
 	}
     
-	/**
-	//char *b64 = leer v[2] sin \n, *linea = leer v[3];
+	// Eliminado del \n de v[2]
+	char *b64 = v[2];
+	b64[strcspn(b64, "\n")] = '\0';
+
+	char *linea = v[3];
+
     X509 *cert = roa_cert_desde_b64(b64);
     
 	if (!cert || roa_parsear(linea, &r, err, sizeof err)) { 
@@ -23,5 +27,5 @@ int main(int c, char **v) {
     
 	int rc = roa_validar(&r, cert, &R, time(NULL), &motivo);
     printf("%d %s\n", rc, motivo);
-	*/
+
 }
