@@ -1,9 +1,10 @@
 import os
+import time
 import unittest
 
-from vector_distancia import INF, TTL_INICIAL, Nodo
+from vector_distancia import INF, ROA_INVALID, ROA_UNKNOWN, ROA_VALID, TTL_INICIAL, Nodo, ValidadorPuntoE
 
-# Costos de conexion acordados
+# Costos de conexion que acordamos en la tabla del doc de diseno
 TOPOLOGIA_CLASE = {
     1: {3: 5, 4: 2, 5: 2},  # Koopatroopas
     2: {3: 2, 5: 1},        # SHELL
@@ -81,6 +82,42 @@ class PruebasPuntoF(unittest.TestCase):
         # Si viene con TTL=1 y todavia no ha llegado al destino, al restarle 1 queda en 0 y se descarta
         accion_ttl, salto_ttl, _ = nodos[1].procesar_data("DATA|1|2|1|Expira")
         self.assertEqual((accion_ttl, salto_ttl), ("DESCARTAR", None))
+
+    def test_integracion_punto_e(self):
+        # Prueba la conexion entre el Nodo en Python (Punto F) y la tabla ROA en C (Punto E)
+        validador = ValidadorPuntoE()
+        if validador.lib is None:
+            self.skipTest("Libreria C libpuntoE.so disponible solo en Linux/WSL")
+
+        try:
+            ahora = int(time.time())
+            # Guardamos 2 ROAs en la tabla con semaforos en C:
+            # - La IP de SHELL (10.0.2.1) autorizada para la isla 2 -> da ROA_VALID
+            # - La IP de 4bits (10.0.3.1) registrada a nombre de otra isla (99) -> cuando isla 3 la anuncie da ROA_INVALID
+            # - La IP de Pirateados (10.0.4.1) no tiene ROA -> da ROA_UNKNOWN (se acepta)
+            validador.cargar_roas(
+                [
+                    ("10.0.2.1", 2, ahora + 3600),
+                    ("10.0.3.1", 99, ahora + 3600),
+                ]
+            )
+
+            self.assertEqual(validador.evaluar("10.0.2.1", 2, ahora), ROA_VALID)
+            self.assertEqual(validador.evaluar("10.0.3.1", 3, ahora), ROA_INVALID)
+            self.assertEqual(validador.evaluar("10.0.4.1", 4, ahora), ROA_UNKNOWN)
+
+            ruta = os.path.join(os.path.dirname(__file__), "config_koopatroopas.json")
+            koopa = Nodo.desde_config(ruta, validador_roa=validador)
+
+            # Pirateados (4) nos anuncia ruta hacia SHELL (2, ROA_VALID) y hacia 4bits (3, ROA_INVALID)
+            koopa.recibir(4, {2: 3, 3: 1})
+
+            # Tiene que aceptar a Pirateados (4) y SHELL (2), pero descartar a 4bits (3) por ROA_INVALID
+            self.assertEqual(koopa.mejor(4), (2, 4))
+            self.assertEqual(koopa.mejor(2), (5, 4))
+            self.assertEqual(koopa.mejor(3), (INF, None))
+        finally:
+            validador.cerrar()
 
 
 if __name__ == "__main__":
