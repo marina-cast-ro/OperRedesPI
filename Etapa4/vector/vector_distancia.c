@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 
+// Inicializa la tabla con costos en infinito
 void tabla_iniciar(tabla_enrutamiento_t *t, int mi_id, int puerto) {
     if (!t) return;
     memset(t, 0, sizeof(*t));
@@ -18,11 +19,13 @@ void tabla_iniciar(tabla_enrutamiento_t *t, int mi_id, int puerto) {
     }
 }
 
+// Destruye el mutex de la tabla
 void tabla_destruir(tabla_enrutamiento_t *t) {
     if (!t) return;
     pthread_mutex_destroy(&t->candado);
 }
 
+// Configura un vecino directo con su costo de enlace
 void tabla_configurar_vecino(tabla_enrutamiento_t *t, int id_vecino, int costo, const char *ip, const char *nombre) {
     if (!t || id_vecino <= 0 || id_vecino >= MAX_ISLAS) return;
     pthread_mutex_lock(&t->candado);
@@ -43,6 +46,7 @@ void tabla_configurar_vecino(tabla_enrutamiento_t *t, int id_vecino, int costo, 
     pthread_mutex_unlock(&t->candado);
 }
 
+// Registra los datos de una isla
 void tabla_configurar_isla(tabla_enrutamiento_t *t, int id_isla, const char *ip, const char *nombre) {
     if (!t || id_isla <= 0 || id_isla >= MAX_ISLAS) return;
     pthread_mutex_lock(&t->candado);
@@ -57,9 +61,7 @@ void tabla_configurar_isla(tabla_enrutamiento_t *t, int id_isla, const char *ip,
     pthread_mutex_unlock(&t->candado);
 }
 
-/* Consulta RPKI al modulo C del Punto E:
- * Retorna 1 si la ruta es valida (ROA_VALID o ROA_UNKNOWN),
- * Retorna 0 si es invalida (ROA_INVALID). */
+// Consulta si la ruta es valida segun la tabla ROA del punto E
 static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
     if (isla <= 0 || isla >= MAX_ISLAS) return 0;
     const char *ip = t->ips[isla];
@@ -67,13 +69,13 @@ static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
 
     roa_resultado_t res = roa_almacen_consultar(ip, isla, ahora);
     if (res == ROA_INVALID) {
-        fprintf(stderr, "[ROA] Ruta descartada: la isla %d no tiene permiso de anunciar la IP %s\n", isla, ip);
+        fprintf(stderr, "[ROA] Ruta descartada: isla %d no autorizada para IP %s\n", isla, ip);
         return 0;
     }
     return 1;
 }
 
-/* Helper interno: calculo del camino de menor costo sin adquirir candado */
+// Busca el mejor camino (en caso de empate gana el de menor id)
 static int mejor_camino_sin_candado(const tabla_enrutamiento_t *t, int destino, int *costo_out, int *via_out) {
     int min_c = INF;
     int mejor_via = 0;
@@ -85,7 +87,7 @@ static int mejor_camino_sin_candado(const tabla_enrutamiento_t *t, int destino, 
             min_c = c;
             mejor_via = v;
         } else if (c == min_c && min_c < INF) {
-            /* Regla de desempate acordada: gana el vecino con menor ID */
+            // Desempate por menor id
             if (mejor_via == 0 || v < mejor_via) {
                 mejor_via = v;
             }
@@ -97,6 +99,7 @@ static int mejor_camino_sin_candado(const tabla_enrutamiento_t *t, int destino, 
     return (min_c < INF && mejor_via > 0);
 }
 
+// Devuelve el mejor costo y por cual vecino ir
 int tabla_obtener_mejor(tabla_enrutamiento_t *t, int destino, int *costo_out, int *via_out) {
     if (!t || destino <= 0 || destino >= MAX_ISLAS) return 0;
     pthread_mutex_lock(&t->candado);
@@ -105,6 +108,7 @@ int tabla_obtener_mejor(tabla_enrutamiento_t *t, int destino, int *costo_out, in
     return ok;
 }
 
+// Retorna el siguiente salto hacia el destino
 int tabla_siguiente_salto(tabla_enrutamiento_t *t, int destino) {
     int via = 0;
     int costo = INF;
@@ -114,6 +118,7 @@ int tabla_siguiente_salto(tabla_enrutamiento_t *t, int destino) {
     return 0;
 }
 
+// Devuelve un resumen con las mejores rutas
 void tabla_obtener_resumen(tabla_enrutamiento_t *t, ruta_optima_t *resumen_out, size_t *n_out) {
     if (!t || !resumen_out || !n_out) return;
     pthread_mutex_lock(&t->candado);
@@ -133,6 +138,7 @@ void tabla_obtener_resumen(tabla_enrutamiento_t *t, ruta_optima_t *resumen_out, 
     pthread_mutex_unlock(&t->candado);
 }
 
+// Compara si la tabla cambio respecto a una version anterior
 static int resumen_ha_cambiado(const int antes_c[MAX_ISLAS], const int antes_v[MAX_ISLAS], const tabla_enrutamiento_t *t) {
     for (int d = 1; d < MAX_ISLAS; d++) {
         int ahora_c, ahora_v;
@@ -142,6 +148,7 @@ static int resumen_ha_cambiado(const int antes_c[MAX_ISLAS], const int antes_v[M
     return 0;
 }
 
+// Marca como inalcanzables las rutas que pasaban por el vecino
 int tabla_vecino_caido(tabla_enrutamiento_t *t, int vecino) {
     if (!t || vecino <= 0 || vecino >= MAX_ISLAS) return 0;
     pthread_mutex_lock(&t->candado);
@@ -161,6 +168,7 @@ int tabla_vecino_caido(tabla_enrutamiento_t *t, int vecino) {
     return cambio;
 }
 
+// Detecta si algun vecino supero el tiempo de silencio
 int tabla_revisar_silencio(tabla_enrutamiento_t *t, int tolerancia, time_t ahora) {
     if (!t) return 0;
     if (ahora == 0) ahora = time(NULL);
@@ -189,18 +197,19 @@ int tabla_revisar_silencio(tabla_enrutamiento_t *t, int tolerancia, time_t ahora
     return hubo_cambio;
 }
 
+// Procesa el vector de distancias recibido de un vecino
 int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destinos, const int *costos, size_t n_entradas, time_t ahora) {
     if (!t || vecino <= 0 || vecino >= MAX_ISLAS || !t->vecinos[vecino].configurado) return 0;
     if (ahora == 0) ahora = time(NULL);
 
-    /* 1. Aviso de muerte recibido (-1 para si mismo) */
+    // 1. Revisa si es aviso de muerte (-1 hacia si mismo)
     for (size_t i = 0; i < n_entradas; i++) {
         if (destinos[i] == vecino && costos[i] == -1) {
             return tabla_vecino_caido(t, vecino);
         }
     }
 
-    /* 2. Validacion RPKI del vecino que habla */
+    // 2. Valida ROA del vecino emisor
     if (!es_ruta_valida_roa(t, vecino, ahora)) {
         return 0;
     }
@@ -212,7 +221,7 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
         mejor_camino_sin_candado(t, d, &antes_c[d], &antes_v[d]);
     }
 
-    /* 3. Limpiar rutas previas por este vecino y actualizar enlace directo */
+    // 3. Limpia rutas viejas de este vecino y actualiza enlace directo
     for (int d = 1; d < MAX_ISLAS; d++) {
         if (d != vecino) t->matriz_costos[d][vecino] = INF;
     }
@@ -220,7 +229,7 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
     t->matriz_costos[vecino][vecino] = t->vecinos[vecino].costo_enlace;
     t->destinos_vistos[vecino] = 1;
 
-    /* 4. Aplicar Bellman-Ford con validacion ROA de cada destino */
+    // 4. Aplica Bellman-Ford con validacion ROA para cada destino
     for (size_t i = 0; i < n_entradas; i++) {
         int d = destinos[i];
         int c = costos[i];
@@ -246,6 +255,7 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
     return cambio;
 }
 
+// Arma el vector que se le manda a un vecino con poison reverse
 size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destinos_out, int *costos_out, size_t max_out) {
     if (!t || vecino <= 0 || vecino >= MAX_ISLAS) return 0;
     pthread_mutex_lock(&t->candado);
@@ -256,12 +266,11 @@ size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destino
         int costo = INF, via = 0;
         mejor_camino_sin_candado(t, d, &costo, &via);
 
-        /* Si no hay camino hacia d y nunca se ha visto, omitir */
         if (costo == INF && via == 0) continue;
 
         if (count < max_out) {
             destinos_out[count] = d;
-            /* Poison Reverse: si mi mejor ruta hacia 'd' pasa por 'vecino', anuncio -1 */
+            // Poison reverse: si paso por ese vecino, le anuncio -1
             if (costo >= INF || (POISON_REVERSE && via == vecino)) {
                 costos_out[count] = -1;
             } else {
@@ -274,6 +283,7 @@ size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destino
     return count;
 }
 
+// Convierte las rutas en lineas ANNOUNCE|destino|costo
 int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, char *buffer_out, size_t max_len) {
     if (!t || !buffer_out || max_len == 0) return -1;
     buffer_out[0] = '\0';
@@ -288,7 +298,7 @@ int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, 
     size_t n = tabla_armar_vector_para(t, vecino, destinos, costos, MAX_ISLAS);
 
     if (n == 0) {
-        /* KeepAlive: costo 0 indica que estamos vivos */
+        // Keepalive con costo 0
         snprintf(buffer_out, max_len, "ANNOUNCE|%d|0\n", t->mi_id);
         return 0;
     }
@@ -302,6 +312,7 @@ int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, 
     return 0;
 }
 
+// Convierte texto de ANNOUNCE a arreglos de destinos y costos
 size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *costos_out, size_t max_entradas) {
     if (!texto || !destinos_out || !costos_out || max_entradas == 0) return 0;
 
@@ -332,6 +343,7 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
     return count;
 }
 
+// Procesa paquetes DATA: entrega, decrementa TTL o reenvia
 int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *accion_out, int *salto_out, char *nuevo_msg_out, size_t max_len) {
     if (!t || !msg_data || !accion_out || !nuevo_msg_out) return -1;
 
@@ -346,7 +358,7 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    /* 1. Si es para nosotros, entregar */
+    // 1. Mensaje para esta isla
     if (destino == t->mi_id) {
         strcpy(accion_out, "ENTREGAR");
         if (salto_out) *salto_out = 0;
@@ -354,7 +366,7 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    /* 2. Decrementar TTL */
+    // 2. Decrementar TTL
     ttl--;
     if (ttl <= 0) {
         strcpy(accion_out, "DESCARTAR");
@@ -363,7 +375,7 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    /* 3. Consultar siguiente salto */
+    // 3. Buscar siguiente salto
     int salto = tabla_siguiente_salto(t, destino);
     if (salto == 0) {
         strcpy(accion_out, "DESCARTAR");
@@ -372,13 +384,14 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    /* 4. Reenviar con nuevo TTL */
+    // 4. Reenviar con nuevo TTL
     strcpy(accion_out, "REENVIAR");
     if (salto_out) *salto_out = salto;
     snprintf(nuevo_msg_out, max_len, "DATA|%d|%d|%d|%s", origen, destino, ttl, datos);
     return 0;
 }
 
+// Imprime la tabla de enrutamiento con fecha y hora
 void tabla_imprimir(tabla_enrutamiento_t *t) {
     if (!t) return;
     pthread_mutex_lock(&t->candado);
@@ -419,7 +432,7 @@ void tabla_imprimir(tabla_enrutamiento_t *t) {
     pthread_mutex_unlock(&t->candado);
 }
 
-/* Parser simple de JSON de configuracion (por ejemplo config_koopatroopas.json) */
+// Carga vecinos e IPs desde config_koopatroopas.json
 int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
     FILE *f = fopen(ruta_json, "r");
     if (!f) return -1;
@@ -434,14 +447,14 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
     buf[leidos] = '\0';
     fclose(f);
 
-    /* Extraer mi_id */
+    // Leer mi_id
     char *p = strstr(buf, "\"mi_id\"");
     int mi_id = 1;
     if (p) {
         sscanf(p, "\"mi_id\"%*[^0-9]%d", &mi_id);
     }
 
-    /* Extraer puerto */
+    // Leer puerto TCP
     int puerto = PUERTO_TCP_DEFECTO;
     p = strstr(buf, "\"puerto_tcp\"");
     if (p) {
@@ -450,7 +463,7 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
 
     tabla_iniciar(t, mi_id, puerto);
 
-    /* Extraer nombre propio si existe */
+    // Leer nombre propio
     p = strstr(buf, "\"nombre\"");
     if (p) {
         char nombre_propio[32];
@@ -459,7 +472,7 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
         }
     }
 
-    /* Parsear islas */
+    // Leer datos de las islas
     char *islas_sec = strstr(buf, "\"islas\"");
     if (islas_sec) {
         char *fin_islas = strchr(islas_sec, '}');
@@ -482,7 +495,7 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
         }
     }
 
-    /* Parsear vecinos */
+    // Leer vecinos directos y sus costos
     char *vec_sec = strstr(buf, "\"vecinos\"");
     if (vec_sec) {
         for (int id = 1; id < MAX_ISLAS; id++) {

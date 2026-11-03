@@ -16,23 +16,21 @@ static tabla_enrutamiento_t g_tabla;
 static volatile sig_atomic_t g_ejecutando = 1;
 static int g_socket_servidor = -1;
 
-/* Envia un texto terminado en \n por TCP al vecino especificado */
+// Envia un mensaje TCP al router vecino con timeout de 5s
 static int enviar_tcp(const char *ip, int puerto, const char *texto) {
     if (!ip || ip[0] == '\0') return -1;
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) return -1;
 
-    struct timeval tv;
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
+    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(puerto);
+    serv_addr.sin_port = htons((uint16_t)puerto);
 
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0) {
         close(sock);
@@ -49,7 +47,7 @@ static int enviar_tcp(const char *ip, int puerto, const char *texto) {
     return 0;
 }
 
-/* Envia ANNOUNCE a todos los vecinos directos */
+// Envia el anuncio de rutas a todos los vecinos directos
 static void anunciar_a_vecinos(tabla_enrutamiento_t *t, int muerte) {
     char buffer[2048];
     for (int v = 1; v < MAX_ISLAS; v++) {
@@ -62,7 +60,7 @@ static void anunciar_a_vecinos(tabla_enrutamiento_t *t, int muerte) {
     }
 }
 
-/* Hilo que atiende una conexion TCP entrante */
+// Hilo que atiende un paquete entrante (ANNOUNCE o DATA)
 static void *hilo_conexion(void *arg) {
     int client_sock = (int)(intptr_t)arg;
     char buffer[4096];
@@ -71,7 +69,7 @@ static void *hilo_conexion(void *arg) {
     if (leidos > 0) {
         buffer[leidos] = '\0';
         if (strncmp(buffer, "ANNOUNCE", 8) == 0) {
-            /* Buscar quien nos envio el mensaje segun la IP remota */
+            // Identificar vecino por su IP
             struct sockaddr_in peer;
             socklen_t peer_len = sizeof(peer);
             getpeername(client_sock, (struct sockaddr *)&peer, &peer_len);
@@ -116,7 +114,7 @@ static void *hilo_conexion(void *arg) {
     return NULL;
 }
 
-/* Hilo periodico de anuncios y deteccion de silencio */
+// Hilo para enviar anuncios cada 30s y verificar silencios de 90s
 static void *hilo_temporizador(void *arg) {
     (void)arg;
     while (g_ejecutando) {
@@ -131,6 +129,7 @@ static void *hilo_temporizador(void *arg) {
     return NULL;
 }
 
+// Captura Ctrl+C para mandar aviso de muerte (-1) a los vecinos
 static void manejador_senales(int sig) {
     (void)sig;
     printf("\nCerrando nodo y enviando aviso de muerte (-1) a los vecinos...\n");
@@ -142,7 +141,7 @@ static void manejador_senales(int sig) {
     }
 }
 
-/* Ejecucion en red TCP real */
+// Modo enrutador conectado a la red TCP real
 static void ejecutar_en_red(const char *ruta_cfg) {
     if (tabla_cargar_config_json(&g_tabla, ruta_cfg) != 0) {
         fprintf(stderr, "No se pudo leer %s. Usando configuracion por defecto para Isla 1...\n", ruta_cfg);
@@ -152,7 +151,7 @@ static void ejecutar_en_red(const char *ruta_cfg) {
         tabla_configurar_vecino(&g_tabla, 5, 2, "10.0.5.1", "Pi de Frambuesa");
     }
 
-    /* Iniciar almacen de ROAs */
+    // Inicializar almacen de ROAs
     roa_almacen_iniciar();
 
     signal(SIGINT, manejador_senales);
@@ -171,7 +170,7 @@ static void ejecutar_en_red(const char *ruta_cfg) {
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(g_tabla.puerto_tcp);
+    serv_addr.sin_port = htons((uint16_t)g_tabla.puerto_tcp);
 
     if (bind(g_socket_servidor, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("bind");
@@ -205,7 +204,7 @@ static void ejecutar_en_red(const char *ruta_cfg) {
     printf("Enrutador detenido exitosamente.\n");
 }
 
-/* Simulacion de las 5 islas (identica a vector_distancia.py) */
+// Simulacion de 5 islas para pruebas locales
 static void ejecutar_simulacion(void) {
     printf("=== MODO SIMULACION: Topologia de 5 islas ===\n");
     roa_almacen_iniciar();
@@ -222,27 +221,27 @@ static void ejecutar_simulacion(void) {
         }
     }
 
-    /* Configurar enlaces directos */
-    /* Isla 1 (Koopatroopas) */
+    // Configurar enlaces directos segun la matriz acordada
+    // Isla 1 (Koopatroopas)
     tabla_configurar_vecino(&nodos[1], 3, 5, "", "4bits");
     tabla_configurar_vecino(&nodos[1], 4, 2, "", "Pirateados");
     tabla_configurar_vecino(&nodos[1], 5, 2, "", "Pi de Frambuesa");
 
-    /* Isla 2 (SHELL) */
+    // Isla 2 (SHELL)
     tabla_configurar_vecino(&nodos[2], 3, 2, "", "4bits");
     tabla_configurar_vecino(&nodos[2], 5, 1, "", "Pi de Frambuesa");
 
-    /* Isla 3 (4bits) */
+    // Isla 3 (4bits)
     tabla_configurar_vecino(&nodos[3], 1, 5, "", "Koopatroopas");
     tabla_configurar_vecino(&nodos[3], 2, 2, "", "SHELL");
     tabla_configurar_vecino(&nodos[3], 4, 1, "", "Pirateados");
 
-    /* Isla 4 (Pirateados) */
+    // Isla 4 (Pirateados)
     tabla_configurar_vecino(&nodos[4], 1, 2, "", "Koopatroopas");
     tabla_configurar_vecino(&nodos[4], 3, 1, "", "4bits");
     tabla_configurar_vecino(&nodos[4], 5, 5, "", "Pi de Frambuesa");
 
-    /* Isla 5 (Pi de Frambuesa) */
+    // Isla 5 (Pi de Frambuesa)
     tabla_configurar_vecino(&nodos[5], 1, 2, "", "Koopatroopas");
     tabla_configurar_vecino(&nodos[5], 2, 1, "", "SHELL");
     tabla_configurar_vecino(&nodos[5], 4, 5, "", "Pirateados");
