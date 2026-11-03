@@ -1,4 +1,4 @@
-#include "roa_validar.h"
+#include "roa_validate.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -13,9 +13,9 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
-static void poner_err(char *err, size_t n, const char *msg) {
+/** static void poner_err(char *err, size_t n, const char *msg) {
     if (err && n) snprintf(err, n, "%s", msg);
-}
+} */
 
 /* ---------------- base64 ---------------- */
 
@@ -131,11 +131,11 @@ void roa_liberar(roa_t *r) {
     free(r->texto_firmado);
     free(r->firma);
     memset(r, 0, sizeof *r);
-}
+}*/
 
 /* ---------------- truststore ---------------- */
 
-int roa_raices_cargar(const char *ruta, roa_raices_t *out, char *err, size_t errlen) {
+int roa_charge_roots(const char *ruta, roa_trusted_roots_t *out, char *err, size_t errlen) {
     out->v = NULL;
     out->n = 0;
     BIO *bio = BIO_new_file(ruta, "r");
@@ -162,10 +162,13 @@ int roa_raices_cargar(const char *ruta, roa_raices_t *out, char *err, size_t err
     return 0;
 }
 
-void roa_raices_liberar(roa_raices_t *r) {
+void roa_free_roots(roa_trusted_roots_t *r) {
     if (!r) return;
-    for (size_t i = 0; i < r->n; i++) X509_free(r->v[i]);
-    free(r->v);
+
+    for (size_t i = 0; i < r->n; i++) 
+		X509_free(r->v[i]);
+    
+	free(r->v);
     r->v = NULL;
     r->n = 0;
 }
@@ -235,7 +238,7 @@ static int key_usage_ok(X509 *c, int bit) {
     return ok;
 }
 
-roa_veredicto_t roa_validar_cadena(X509 *cert, const roa_raices_t *raices, time_t ahora, const char **motivo) {
+roa_veredicto_t roa_validar_cadena(X509 *cert, const roa_trusted_roots_t *raices, time_t ahora, const char **motivo) {
     /* Paso 1: vigencia del nodo */
     if (!vigente(cert, ahora)) {
         *motivo = "el certificado del nodo no esta vigente";
@@ -272,7 +275,7 @@ roa_veredicto_t roa_validar_cadena(X509 *cert, const roa_raices_t *raices, time_
 
 /* ---------------- ROA (punto B, pasos 2 a 6) ---------------- */
 
-roa_veredicto_t roa_validar(const roa_t *roa, X509 *cert, const roa_raices_t *raices, time_t ahora, const char **motivo) {
+roa_veredicto_t roa_validar(const roa_t *roa, X509 *cert, const roa_trusted_roots_t *raices, time_t ahora, const char **motivo) {
     /* Paso 2: vigencia del ROA */
     if (ahora < roa->emision) {
         *motivo = "ROA aun no vigente (EMISION en el futuro)";
