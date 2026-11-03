@@ -6,8 +6,9 @@
 #      (destino por defecto: /etc/rpki/truststore, que pide sudo)
 #
 # trust-anchors/ trae un ca-<Equipo>.crt por grupo.
-# fingerprints.txt tiene una línea por grupo, «<Equipo> <huella SHA-256>», copiada a mano del chat:
+# fingerprints.txt tiene una línea por grupo, copiada a mano del chat. Sirven los dos formatos:
 #     Koopatroopas 3A:91:...:C4
+#     ca-Koopatroopas.crt 3A:91:...:C4
 set -e
 
 if [ $# -lt 2 ]; then
@@ -34,7 +35,7 @@ for crt in "$ANCLAS"/ca-*.crt; do
     equipo=$(basename "$crt" .crt)
     equipo=${equipo#ca-}
 
-    esperada=$(awk -v e="$equipo" '$1 == e {print $2}' "$HUELLAS" | normalizar)
+    esperada=$(awk -v e="$equipo" '$1 == e || $1 == "ca-" e ".crt" {print $2; exit}' "$HUELLAS" | normalizar)
     real=$(openssl x509 -in "$crt" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2 | normalizar)
 
     if [ -z "$esperada" ]; then
