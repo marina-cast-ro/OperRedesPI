@@ -41,10 +41,10 @@ typedef struct {
 static KnownCert knownCerts[MAX_CERTS];
 
 // Protege el almacenamiento y knownCerts
-static pthread_rwlock_t storageLock = PTHREAD_RWLOCK_INITIALIZER;
+static pthread_rwlock_t storageLock;
 
 // Protege trustStore
-static pthread_rwlock_t trustLock = PTHREAD_RWLOCK_INITIALIZER;
+static pthread_rwlock_t trustLock;
 static X509_STORE *trustStore = NULL;
 static time_t trustStoreModified = 0;
 static const char *trustStoreFile = NULL;
@@ -442,7 +442,22 @@ void sessionFree(Session *session) {
     session->cert = NULL;
 }
 
+// Prepara un candado con preferencia a escritores, para que muchos LIST no dejen esperando a un PUT
+static int initLock(pthread_rwlock_t *lock) {
+    pthread_rwlockattr_t attributes;
+    if (pthread_rwlockattr_init(&attributes) != 0) {
+        return -1;
+    }
+    pthread_rwlockattr_setkind_np(&attributes, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+    int result = pthread_rwlock_init(lock, &attributes);
+    pthread_rwlockattr_destroy(&attributes);
+    return result;
+}
+
 int commandsInit(const char *trustStorePath) {
+    if (initLock(&storageLock) != 0 || initLock(&trustLock) != 0) {
+        return -1;
+    }
     trustStoreFile = trustStorePath;
     if (reloadTrustStoreIfChanged(trustStoreFile, &trustStore, &trustStoreModified) != 1) {
         return -1;
