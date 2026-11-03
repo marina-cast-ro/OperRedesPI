@@ -1,0 +1,3 @@
+# Se corren en Linux, tienen que quedar con LF
+Makefile text eol=lf
+*.py     text eol=lf
