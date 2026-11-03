@@ -30,7 +30,7 @@ X509 *certFromFile(const char *path);
 // Retorna un string hecho con malloc (hay que hacerle free), o NULL si falla
 char *certToBase64(X509 *cert);
 
-// Lo contrario: arma el certificado a partir del base64 que llegó por la red.
+// Lo contrario: arma el certificado a partir del base64 que llegó por la red, de DER o de PEM.
 // Retorna NULL si el texto no es un certificado. Se libera con X509_free
 X509 *certFromBase64(const char *base64);
 

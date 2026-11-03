@@ -3,6 +3,7 @@
 # La CA y los nodos de prueba se crean en una carpeta temporal
 
 import base64
+import copy
 import socket
 import subprocess
 import sys
@@ -202,6 +203,13 @@ def run_protocol_tests(node, other, fake, wrong_num):
     check("Certificado de otro número de emisor", owner_hello(wrong_num)[1], "ERR_PERMISO")
     check("Base64 que no es un certificado",
           Connection().request("HELLO|OWNER|201|QUJD"), "ERR_FORMATO")
+    pem_node = copy.copy(node)
+    pem_node.cert_b64 = base64.b64encode(openssl("x509", "-inform", "DER", data=base64.b64decode(node.cert_b64))).decode()
+    connection, hello = owner_hello(pem_node)
+    check("Certificado en base64 de PEM recibe nonce", hello.split("|")[:2], ["HELLO_OK", "OWNER"])
+    connection.close()
+    bad_pem = base64.b64encode(b"-----BEGIN CERTIFICATE-----\nbasura\n-----END CERTIFICATE-----\n").decode()
+    check("PEM que no trae un certificado", Connection().request(f"HELLO|OWNER|201|{bad_pem}"), "ERR_FORMATO")
 
     print("\n-- PUT --")
     ip = "10.2.0.5"
@@ -215,6 +223,8 @@ def run_protocol_tests(node, other, fake, wrong_num):
     second_roa = node.roa(ip, issued=NOW - 30)
     check("PUT que reemplaza sube la versión", put(node, second_roa), "OK|2")
     check("Después de reemplazar sigue habiendo un solo ROA", router_list(), ("OK|2|1", [second_roa]))
+    check("PUT con el certificado en PEM", put(pem_node, second_roa), "OK|2")
+    check("CERT lo entrega en DER aunque llegara en PEM", router(f"CERT|{node.num}"), f"OK|{node.cert_b64}")
 
     print("\n-- PUT rechazados --")
     check("Petición firmada con otra llave", put(node, node.roa("10.2.0.6"), sign_with=other), "ERR_FIRMA")
