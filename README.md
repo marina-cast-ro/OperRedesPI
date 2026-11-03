@@ -104,3 +104,21 @@ bash crear-ca.sh
 make
 
 ```
+
+#### Repositorio
+
+> Ubicarse dentro de la carpeta Etapa4/repositorio/ (requiere `sudo apt install libssl-dev`)
+
+``` bash
+
+# Compilación del servidor
+make
+
+# Pruebas del servidor
+make test
+
+# Levantar el repositorio en el puerto 9000
+# Usa /etc/rpki/truststore/trusted-roots.pem, o se le puede pasar otro truststore y otro puerto
+./build/repoServer
+
+```
