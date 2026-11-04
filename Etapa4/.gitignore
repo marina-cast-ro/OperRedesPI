@@ -1,0 +1,10 @@
+build/
+__pycache__/
+*.o
+*.so
+*.key
+*.csr
+puntoE/libpuntoE.so
+vector/enrutador
+host/host_emisor
+validacionROAs/roa_test
