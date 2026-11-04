@@ -36,29 +36,29 @@
 // Estructura del Superbloque: Contiene la información de control global del sistema
 typedef struct __attribute__((packed)) {
     // campos
-    uint32_t magic_number;          // numero magico para validar si el disco esta formateado
+    uint32_t magicNumber;          // Numero magico para validar si el disco esta formateado
     uint64_t version;               // Contador incremental que pide storageVersion()
-    uint32_t total_blocks;          // Cantidad de bloques logicos del sistema de archivos
-    uint32_t inode_count;           // Cantidad de inodos configurados
-    uint32_t free_blocks;           // Cantidad de bloques libres
-    uint32_t free_inodes;           // Cantidad de inodos libres
+    uint32_t totalBlocks;          // Cantidad de bloques logicos del sistema de archivos
+    uint32_t inodeCount;           // Cantidad de inodos configurados
+    uint32_t freeBlocks;           // Cantidad de bloques libres
+    uint32_t freeInodes;           // Cantidad de inodos libres
     uint8_t  padding[480];          // Para completar los 512 bytes del bloque 0
 } SuperBlock;
 
 // Estructura del Inodo (Exactamente 128 bytes)
 typedef struct __attribute__((packed)) {
     // campos
-    uint16_t inode_id;
+    uint16_t inodeID;
     uint8_t  type;                  // FS_TYPE_FILE o FS_TYPE_DIR
-    uint32_t is_used;               // 1 en uso, 0 libre
+    uint32_t isUsed;               // 1 en uso, 0 libre
     uint16_t permissions;
-    uint16_t reserved_align;
-    uint32_t file_size;             // Tamaño del archivo en bytes
-    uint64_t created_at;            // Timestamp de la creacion
-    uint64_t modified_at;           // Timestamp de la ultima modificacion
+    uint16_t reservedAlign;
+    uint32_t fileSize;             // Tamaño del archivo en bytes
+    uint64_t createdAt;            // Timestamp de la creacion
+    uint64_t modifiedAt;           // Timestamp de la ultima modificacion
     char owner[64];                 // Nombre del propietario del archivo
-    uint32_t direct_blocks[4];      // 4 punteros directos exigidos por el diseño
-    uint32_t indirect_block;        // 1 puntero indirecto simple exigido
+    uint32_t directBlocks[4];      // 4 punteros directos exigidos por el diseño
+    uint32_t indirectBlock;        // 1 puntero indirecto simple exigido
     uint8_t  padding[16];           // Completa 128 bytes exactos
 
 } Inode;
@@ -66,10 +66,25 @@ typedef struct __attribute__((packed)) {
 // Entrada de Directorio (Exactamente 32 bytes)
 typedef struct __attribute__((packed)) {
     // campos
-    uint16_t inode_index;           // Indice del inodo al que pertenece la entrada
-    uint8_t is_used;                // 1 si la entrada esta en uso, 0 si esta libre  
+    uint16_t inodeIndex;           // Indice del inodo al que pertenece la entrada
+    uint8_t isUsed;                // 1 si la entrada esta en uso, 0 si esta libre  
     char ip[16];                    // Direccion IP del propietario del archivo
     uint8_t padding[13];            // Completa 32 bytes exactos
 } DirEntry;
+
+// --- FIRMAS --- 
+// Traduccion fisica: Convierte plato, pista y sector a indice lineal LBA
+uint32_t diskChsToLBA(uint32_t platter, uint32_t track, uint32_t sector);
+
+// Operaciones de sector físico (128 bytes)
+int diskReadSector(uint32_t lba, void *buffer);
+int diskWriteSector(uint32_t lba, const void *buffer);
+
+// Operaciones de bloque lógico (512 bytes = 4 sectores)
+int fsReadBlock(uint32_t block_num, void *buffer);
+int fsWriteBlock(uint32_t block_num, const void *buffer);
+
+// Formateo / Inicialización del disco y superbloque
+int fsFormat(void);
 
 #endif
