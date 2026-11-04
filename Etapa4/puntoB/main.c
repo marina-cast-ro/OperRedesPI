@@ -91,8 +91,8 @@ int main(int c, char **v) {
 	}
 	fprintf(stderr, "OK: parseo ROA finalizado\n");
 
-	//int rc = roa_validar(&r, cert, &R, time(NULL), &motivo);
-    //printf("%d %s\n", rc, motivo);
+	int rc = roa_validar(&r, cert, &R, time(NULL), &motivo);
+    printf("%d %s\n", rc, motivo);
 
 	free(b64);
 	free(linea);
