@@ -16,6 +16,99 @@ static tabla_enrutamiento_t g_tabla;
 static volatile sig_atomic_t g_ejecutando = 1;
 static int g_socket_servidor = -1;
 
+// ---------- Punto E: sincronizacion con el repositorio de ROAs ----------
+// La IP del repositorio se pasa como 3er argumento:
+//   ./enrutador --red config.json 10.0.0.9
+// Opcionalmente (y como alternativa a la IP por argumento) el JSON puede traer:
+//   "repositorio": { "ip": "10.0.0.9", "id": "ENR-1", "truststore": "/ruta/trusted-roots.pem" }
+// Todos sus campos son opcionales: "id" por defecto es ENR-<isla> y "truststore" el de siempre.
+// Si no hay IP, el enrutador sigue como antes (tabla ROA vacia: todo UNKNOWN y ninguna
+// ruta se descarta).
+static int g_punto_e_activo = 0;
+
+// Lee el valor de texto de "clave" dentro de la seccion "repositorio" (entre su '{' y su '}')
+static int leer_campo_repositorio(const char *json, const char *clave, char *out, size_t n) {
+    const char *sec = strstr(json, "\"repositorio\"");
+    if (!sec) return -1;
+    const char *ini = strchr(sec, '{');
+    if (!ini) return -1;
+    const char *fin = strchr(ini, '}');
+    if (!fin) return -1;
+
+    char patron[64];
+    snprintf(patron, sizeof(patron), "\"%s\"", clave);
+    const char *k = strstr(ini, patron);
+    if (!k || k > fin) return -1;
+    k = strchr(k + strlen(patron), ':');
+    if (!k || k > fin) return -1;
+    const char *a = strchr(k, '"');
+    if (!a || a > fin) return -1;
+    a++;
+    const char *b = strchr(a, '"');
+    if (!b || b > fin) return -1;
+    size_t len = (size_t)(b - a);
+    if (len == 0 || len >= n) return -1;
+    memcpy(out, a, len);
+    out[len] = '\0';
+    return 0;
+}
+
+// Arranca el punto E si se conoce la IP del repositorio; si no, solo el almacen vacio.
+// La IP viene del argumento 'ip_arg' (tiene prioridad) o del JSON ("repositorio": {"ip": ...}).
+static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
+    char json[16384];
+    size_t len = 0;
+    FILE *f = fopen(ruta_cfg, "rb");
+    if (f) {
+        len = fread(json, 1, sizeof(json) - 1, f);
+        fclose(f);
+    }
+    json[len] = '\0';
+
+    char ip[64] = "", id[64] = "", truststore[256];
+    int tiene_ip = 0;
+    if (ip_arg && ip_arg[0] != '\0') {
+        snprintf(ip, sizeof(ip), "%s", ip_arg);
+        tiene_ip = 1;
+    } else if (leer_campo_repositorio(json, "ip", ip, sizeof(ip)) == 0) {
+        tiene_ip = 1;
+    }
+    if (leer_campo_repositorio(json, "id", id, sizeof(id)) != 0) {
+        snprintf(id, sizeof(id), "ENR-%d", g_tabla.mi_id);
+    }
+
+    if (!tiene_ip) {
+        fprintf(stderr, "[ROA] Sin IP del repositorio (3er argumento o \"repositorio\" en %s): "
+                        "tabla ROA vacia (todo UNKNOWN, ninguna ruta se descarta).\n", ruta_cfg);
+    } else {
+        struct in_addr prueba;
+        if (inet_pton(AF_INET, ip, &prueba) != 1) {
+            fprintf(stderr, "[ROA] IP del repositorio invalida: '%s'. Tabla ROA vacia.\n", ip);
+        } else {
+            punto_e_cfg_t cfg = punto_e_cfg_defecto(ip, id);
+            if (leer_campo_repositorio(json, "truststore", truststore, sizeof(truststore)) == 0) {
+                snprintf(cfg.ruta_truststore, sizeof(cfg.ruta_truststore), "%s", truststore);
+            }
+            if (punto_e_iniciar(&cfg) == 0) {
+                g_punto_e_activo = 1;
+                fprintf(stderr, "[ROA] Sincronizador del punto E activo (repositorio %s, id %s).\n", ip, id);
+                return;
+            }
+            fprintf(stderr, "[ROA] No se pudo iniciar el punto E. Se usa una tabla ROA vacia.\n");
+        }
+    }
+    roa_almacen_iniciar();
+}
+
+static void detener_roas(void) {
+    if (g_punto_e_activo) {
+        punto_e_detener();
+        g_punto_e_activo = 0;
+    } else {
+        roa_almacen_cerrar();
+    }
+}
+
 // Envia un mensaje TCP al router vecino con timeout de 5s
 static int enviar_tcp(const char *ip, int puerto, const char *texto) {
     if (!ip || ip[0] == '\0') return -1;
@@ -142,17 +235,17 @@ static void manejador_senales(int sig) {
 }
 
 // Modo enrutador conectado a la red TCP real
-static void ejecutar_en_red(const char *ruta_cfg) {
+static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
     if (tabla_cargar_config_json(&g_tabla, ruta_cfg) != 0) {
-        fprintf(stderr, "No se pudo leer %s. Usando configuracion por defecto para Isla 1...\n", ruta_cfg);
-        tabla_iniciar(&g_tabla, 1, PUERTO_TCP_DEFECTO);
-        tabla_configurar_vecino(&g_tabla, 3, 5, "10.0.3.1", "4bits");
-        tabla_configurar_vecino(&g_tabla, 4, 2, "10.0.4.1", "Pirateados");
-        tabla_configurar_vecino(&g_tabla, 5, 2, "10.0.5.1", "Pi de Frambuesa");
+        fprintf(stderr, "No se pudo leer %s. Usando configuracion por defecto para Isla 2...\n", ruta_cfg);
+        tabla_iniciar(&g_tabla, 2, PUERTO_TCP_DEFECTO);
+        tabla_configurar_vecino(&g_tabla, 1, 2, "172.30.12.1", "Pirateados");
+        tabla_configurar_vecino(&g_tabla, 4, 5, "172.30.24.2", "4bits");
+        tabla_configurar_vecino(&g_tabla, 5, 2, "172.30.25.2", "Pi de Frambuesa");
     }
 
-    // Inicializar almacen de ROAs
-    roa_almacen_iniciar();
+    // Punto E: arranca el sincronizador con el repositorio (o una tabla ROA vacia)
+    iniciar_roas(ruta_cfg, ip_repositorio);
 
     signal(SIGINT, manejador_senales);
     signal(SIGTERM, manejador_senales);
@@ -199,7 +292,7 @@ static void ejecutar_en_red(const char *ruta_cfg) {
     }
 
     pthread_join(th_timer, NULL);
-    roa_almacen_cerrar();
+    detener_roas();
     tabla_destruir(&g_tabla);
     printf("Enrutador detenido exitosamente.\n");
 }
@@ -214,7 +307,7 @@ static void ejecutar_simulacion(void) {
         tabla_iniciar(&nodos[i], i, PUERTO_TCP_DEFECTO);
     }
 
-    const char *nombres[6] = {"", "Koopatroopas", "SHELL", "4bits", "Pirateados", "Pi de Frambuesa"};
+    const char *nombres[6] = {"", "Pirateados", "Koopatroopas", "SHELL", "4bits", "Pi de Frambuesa"};
     for (int i = 1; i <= 5; i++) {
         for (int j = 1; j <= 5; j++) {
             tabla_configurar_isla(&nodos[i], j, "", nombres[j]);
@@ -222,29 +315,30 @@ static void ejecutar_simulacion(void) {
     }
 
     // Configurar enlaces directos segun la matriz acordada
-    // Isla 1 (Koopatroopas)
-    tabla_configurar_vecino(&nodos[1], 3, 5, "", "4bits");
-    tabla_configurar_vecino(&nodos[1], 4, 2, "", "Pirateados");
-    tabla_configurar_vecino(&nodos[1], 5, 2, "", "Pi de Frambuesa");
+    // (numeracion de la clase: 1 Pirateados, 2 Koopatroopas, 3 SHELL, 4 4bits, 5 Pi de Frambuesa)
+    // Isla 1 (Pirateados)
+    tabla_configurar_vecino(&nodos[1], 2, 2, "", "Koopatroopas");
+    tabla_configurar_vecino(&nodos[1], 4, 1, "", "4bits");
+    tabla_configurar_vecino(&nodos[1], 5, 5, "", "Pi de Frambuesa");
 
-    // Isla 2 (SHELL)
-    tabla_configurar_vecino(&nodos[2], 3, 2, "", "4bits");
-    tabla_configurar_vecino(&nodos[2], 5, 1, "", "Pi de Frambuesa");
+    // Isla 2 (Koopatroopas)
+    tabla_configurar_vecino(&nodos[2], 1, 2, "", "Pirateados");
+    tabla_configurar_vecino(&nodos[2], 4, 5, "", "4bits");
+    tabla_configurar_vecino(&nodos[2], 5, 2, "", "Pi de Frambuesa");
 
-    // Isla 3 (4bits)
-    tabla_configurar_vecino(&nodos[3], 1, 5, "", "Koopatroopas");
-    tabla_configurar_vecino(&nodos[3], 2, 2, "", "SHELL");
-    tabla_configurar_vecino(&nodos[3], 4, 1, "", "Pirateados");
+    // Isla 3 (SHELL)
+    tabla_configurar_vecino(&nodos[3], 4, 2, "", "4bits");
+    tabla_configurar_vecino(&nodos[3], 5, 1, "", "Pi de Frambuesa");
 
-    // Isla 4 (Pirateados)
-    tabla_configurar_vecino(&nodos[4], 1, 2, "", "Koopatroopas");
-    tabla_configurar_vecino(&nodos[4], 3, 1, "", "4bits");
-    tabla_configurar_vecino(&nodos[4], 5, 5, "", "Pi de Frambuesa");
+    // Isla 4 (4bits)
+    tabla_configurar_vecino(&nodos[4], 1, 1, "", "Pirateados");
+    tabla_configurar_vecino(&nodos[4], 2, 5, "", "Koopatroopas");
+    tabla_configurar_vecino(&nodos[4], 3, 2, "", "SHELL");
 
     // Isla 5 (Pi de Frambuesa)
-    tabla_configurar_vecino(&nodos[5], 1, 2, "", "Koopatroopas");
-    tabla_configurar_vecino(&nodos[5], 2, 1, "", "SHELL");
-    tabla_configurar_vecino(&nodos[5], 4, 5, "", "Pirateados");
+    tabla_configurar_vecino(&nodos[5], 1, 5, "", "Pirateados");
+    tabla_configurar_vecino(&nodos[5], 2, 2, "", "Koopatroopas");
+    tabla_configurar_vecino(&nodos[5], 3, 1, "", "SHELL");
 
     printf("\n=== 1. Convergencia inicial de la red (5 equipos) ===\n");
     for (int ronda = 0; ronda < 4; ronda++) {
@@ -254,16 +348,16 @@ static void ejecutar_simulacion(void) {
 
                 int dests[MAX_ISLAS], costos[MAX_ISLAS];
                 size_t n = tabla_armar_vector_para(&nodos[emisor], vecino, dests, costos, MAX_ISLAS);
-                if (tabla_recibir_vector(&nodos[vecino], emisor, dests, costos, n, time(NULL)) && vecino == 1) {
-                    tabla_imprimir(&nodos[1]);
+                if (tabla_recibir_vector(&nodos[vecino], emisor, dests, costos, n, time(NULL)) && vecino == 2) {
+                    tabla_imprimir(&nodos[2]);
                 }
             }
         }
     }
 
-    printf("\n=== 2. Prueba de reenvio DATA desde Koopatroopas (1) hacia SHELL (2) ===\n");
-    char paquete[512] = "DATA|1|2|8|Hola SHELL desde Koopatroopas";
-    int actual = 1;
+    printf("\n=== 2. Prueba de reenvio DATA desde Koopatroopas (2) hacia SHELL (3) ===\n");
+    char paquete[512] = "DATA|2|3|8|Hola SHELL desde Koopatroopas";
+    int actual = 2;
     while (1) {
         char accion[32], nuevo[512];
         int salto = 0;
@@ -274,16 +368,16 @@ static void ejecutar_simulacion(void) {
         actual = salto;
     }
 
-    printf("\n=== 3. Caida de Pirateados (isla 4) con aviso de muerte ===\n");
+    printf("\n=== 3. Caida de Pirateados (isla 1) con aviso de muerte ===\n");
     for (int v = 1; v <= 5; v++) {
-        if (!nodos[4].vecinos[v].configurado) continue;
-        int d[1] = {4}, c[1] = {-1};
-        tabla_recibir_vector(&nodos[v], 4, d, c, 1, time(NULL));
+        if (!nodos[1].vecinos[v].configurado) continue;
+        int d[1] = {1}, c[1] = {-1};
+        tabla_recibir_vector(&nodos[v], 1, d, c, 1, time(NULL));
     }
 
     while (1) {
         int cambio = 0;
-        int participantes[4] = {1, 2, 3, 5};
+        int participantes[4] = {2, 3, 4, 5};
         for (int i = 0; i < 4; i++) {
             int emisor = participantes[i];
             for (int j = 0; j < 4; j++) {
@@ -297,7 +391,7 @@ static void ejecutar_simulacion(void) {
         }
         if (!cambio) break;
     }
-    tabla_imprimir(&nodos[1]);
+    tabla_imprimir(&nodos[2]);
 
     for (int i = 1; i <= 5; i++) {
         tabla_destruir(&nodos[i]);
@@ -307,8 +401,10 @@ static void ejecutar_simulacion(void) {
 
 int main(int argc, char *argv[]) {
     if (argc > 1 && (strcmp(argv[1], "--red") == 0 || strcmp(argv[1], "-r") == 0)) {
+        // Uso: enrutador --red [config.json] [ip_repositorio]
         const char *cfg = (argc > 2) ? argv[2] : "config_koopatroopas.json";
-        ejecutar_en_red(cfg);
+        const char *ip_repositorio = (argc > 3) ? argv[3] : NULL;
+        ejecutar_en_red(cfg, ip_repositorio);
     } else {
         ejecutar_simulacion();
     }
