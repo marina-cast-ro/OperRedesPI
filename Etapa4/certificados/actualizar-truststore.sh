@@ -23,7 +23,7 @@ TEMPORAL="$DESTINO/trusted-roots.pem.tmp"
 
 # Las huellas se comparan sin los dos puntos y en mayúscula, para que no importe cómo se copiaron
 normalizar() {
-    tr -d ':' | tr 'a-f' 'A-F'
+    tr -d ':\r' | tr 'a-f' 'A-F'
 }
 
 mkdir -p "$DESTINO"
