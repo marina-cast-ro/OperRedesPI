@@ -20,7 +20,7 @@ BIN     := $(BUILD)/roa_test
 IP      ?= 10.1.0.5
 ISLA    ?= 65003
 NUM     ?= 17
-DIR     ?= ../prueba
+DIR     ?= prueba
 VALIDEZ ?= 86400
 
 NODO    := $(DIR)/nodo/nodo-AS$(ISLA)-$(NUM)
@@ -30,9 +30,9 @@ ROOTS   := $(DIR)/truststore/trusted-roots.pem
 
 all: $(BIN)
 
-$(BIN): roa_validate.c test.c roa_validate.h
+$(BIN): roa_validate.c main.c roa_validate.h
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) roa_validate.c test.c -o $@ $(LDLIBS)
+	$(CC) $(CFLAGS) roa_validate.c main.c -o $@ $(LDLIBS)
 
 # Firma un ROA nuevo (EMISION = ahora) y deja el certificado en base64 para el validador
 roa: $(BUILD)/roa.txt

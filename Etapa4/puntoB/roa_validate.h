@@ -5,6 +5,19 @@
 #include <time.h>
 #include <openssl/x509.h>
 
+#include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <openssl/asn1.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/x509v3.h>
+
 // ========================= STRUCTS =========================
 /** ROA separado en campos bajo el formato:
     ROA|IP|ISLA|NUM_EMISOR|EMISION|VENCE|FIRMA */

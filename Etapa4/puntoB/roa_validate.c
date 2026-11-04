@@ -1,18 +1,5 @@
 #include "roa_validate.h"
 
-#include <ctype.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <openssl/asn1.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/x509v3.h>
-
 static void poner_err(char *err, size_t n, const char *msg) {
     if (err && n) snprintf(err, n, "%s", msg);
 }
@@ -20,20 +7,35 @@ static void poner_err(char *err, size_t n, const char *msg) {
 /* ---------------- base64 ---------------- */
 
 /* Decodifica base64 en una sola linea. Devuelve un buffer malloc (o NULL) y su largo. */
-static unsigned char *b64_decodificar(const char *s, size_t *largo) {
+static unsigned char *b64_decode(const char *s, size_t *length) {
+    if (!s || !length) return NULL;
+
+    *length = 0;
     size_t n = strlen(s);
-    if (n == 0 || n % 4 != 0) return NULL;
+    
+    if (n == 0 || n % 4 != 0 || n > INT_MAX) return NULL;
+
     for (size_t i = 0; i < n; i++) {
-        char c = s[i];
-        if (!(isalnum((unsigned char)c) || c == '+' || c == '/' || c == '=')) return NULL;
+        unsigned char c = (unsigned char)s[i];
+        if (!(isalnum(c) || c == '+' || c == '/' || c == '=')) return NULL;
+        if (c == '=' && i < n - 2) return NULL;
     }
+
     unsigned char *out = malloc(n / 4 * 3 + 1);
+
     if (!out) return NULL;
+
     int len = EVP_DecodeBlock(out, (const unsigned char *)s, (int)n);
-    if (len < 0) { free(out); return NULL; }
+    
+    if (len < 0) { 
+        free(out); 
+        return NULL; 
+    }
+    
     if (s[n - 1] == '=') len--;       /* EVP_DecodeBlock cuenta el relleno */
-    if (n >= 2 && s[n - 2] == '=') len--;
-    *largo = (size_t)len;
+    if (s[n - 2] == '=') len--;
+    
+    *length = (size_t)len;
     return out;
 }
 
@@ -108,7 +110,7 @@ int roa_parsear(const char *linea, roa_t *out, char *err, size_t errlen) {
         poner_err(err, errlen, "EMISION no puede ser posterior a VENCE"); free(copia); return -1;
     }
     size_t flen;
-    unsigned char *firma = b64_decodificar(campo[6], &flen);
+    unsigned char *firma = b64_decode(campo[6], &flen);
     if (!firma || flen == 0) {
         poner_err(err, errlen, "FIRMA no es base64 valido"); free(firma); free(copia); return -1;
     }
@@ -146,26 +148,52 @@ int roa_charge_roots(const char *ruta, roa_trusted_roots_t *out, char *err, size
     out->v = NULL;
     out->n = 0;
     BIO *bio = BIO_new_file(ruta, "r");
-    if (!bio) { poner_err(err, errlen, "no se pudo abrir el truststore"); return -1; }
+
+    if (!bio) { 
+        poner_err(err, errlen, "no se pudo abrir el truststore"); 
+        return -1; 
+    }
+
     size_t cap = 0;
     X509 *c;
+    
     while ((c = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
         if (out->n == cap) {
-            cap = cap ? cap * 2 : 8;
-            X509 **nv = realloc(out->v, cap * sizeof *nv);
-            if (!nv) { X509_free(c); break; }
+            size_t new_cap = cap ? cap * 2 : 8;
+            X509 **nv = realloc(out->v, new_cap * sizeof *nv);
+            
+            if (!nv) { 
+                X509_free(c); 
+                BIO_free(bio);
+                ERR_clear_error();
+                
+                for (size_t i = 0; i < out->n; i++)
+                    X509_free(out->v[i]);
+
+                free(out->v);
+                out->v = NULL;
+                out->n = 0;
+
+                poner_err(err, errlen, "error de memoria al cargar las raices");
+
+                return -1;
+            }
+            
             out->v = nv;
+            cap = new_cap;
         }
         out->v[out->n++] = c;
     }
     BIO_free(bio);
-    ERR_clear_error(); /* el fin de archivo deja un error de PEM en la cola */
+    ERR_clear_error();   // el fin de archivo deja un error de PEM en la cola
+    
     if (out->n == 0) {
         free(out->v);
         out->v = NULL;
         poner_err(err, errlen, "el truststore no contiene ninguna raiz");
         return -1;
     }
+    
     return 0;
 }
 
@@ -184,7 +212,8 @@ void roa_free_roots(roa_trusted_roots_t *r) {
 
 X509 *roa_cert_desde_b64(const char *b64) {
     size_t n;
-    unsigned char *crudo = b64_decodificar(b64, &n);
+    unsigned char *crudo = b64_decode(b64, &n);
+
     if (!crudo) return NULL;
     X509 *cert = NULL;
     static const char PEM_INI[] = "-----BEGIN CERTIFICATE-----";
