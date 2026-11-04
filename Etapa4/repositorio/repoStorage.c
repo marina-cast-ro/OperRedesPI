@@ -46,6 +46,7 @@ int diskWriteSector(uint32_t lba, const void *buffer) {
 
 // Operaciones de bloque lógico (512 bytes = 4 sectores)
 int fsReadBlock(uint32_t blockNum, void *buffer) {
+    // Validacion de existencia de buffer y limite de numero de bloque
     if (buffer == NULL || blockNum >= FS_TOTAL_BLOCKS) {
         return -1; // VALOR DE ERROR
     }
@@ -63,6 +64,7 @@ int fsReadBlock(uint32_t blockNum, void *buffer) {
 }
 
 int fsWriteBlock(uint32_t blockNum, const void *buffer) {
+    // Validacion de existencia de buffer y limite de numero de bloque
     if (buffer == NULL || blockNum >= FS_TOTAL_BLOCKS) {
         return -1; // VALOR DE ERROR
     }
@@ -78,3 +80,26 @@ int fsWriteBlock(uint32_t blockNum, const void *buffer) {
 
     return 0;
 } 
+
+int fsFormat(void) {
+    memset(disk, 0, DISK_SIZE_BYTES);
+
+    SuperBlock superBlock;
+    memset(&superBlock, 0, sizeof(superBlock));
+
+    superBlock.magicNumber = FS_MAGIC_NUMBER;
+    superBlock.version = 0;
+    superBlock.totalBlocks = FS_TOTAL_BLOCKS;
+    superBlock.inodeCount  = FS_INODES;
+    superBlock.freeBlocks = FS_TOTAL_BLOCKS - FS_DATA_BLOCKS_START; // 64 - 11 = 53
+    superBlock.freeInodes = FS_INODES;
+
+    uint8_t blockBuffer[FS_BLOCK_SIZE];
+    memset(blockBuffer, 0, FS_BLOCK_SIZE);
+    memcpy(blockBuffer, &superBlock, sizeof(SuperBlock));
+
+    if (fsWriteBlock(0, blockBuffer) != 0) {
+        return -1;
+    }
+    return 0;
+}
