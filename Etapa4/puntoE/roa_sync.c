@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "roa_sync.h"
-#include "roa_validar.h"
+#include "roa_validate.h"
 
 #include <pthread.h>
 #include <stdarg.h>
@@ -131,8 +131,8 @@ ciclo_resultado_t punto_e_ciclo(const punto_e_cfg_t *cfg, time_t ahora) {
     }
 
     /* 3. Todo el trabajo pesado, FUERA del candado. */
-    roa_raices_t raices;
-    if (roa_raices_cargar(cfg->ruta_truststore, &raices, err, sizeof err) != 0) {
+    roa_trusted_roots_t raices;
+    if (roa_charge_roots(cfg->ruta_truststore, &raices, err, sizeof err) != 0) {
         logf_("truststore no disponible (%s); se conserva la tabla anterior", err);
         repo_liberar_lineas(lineas, n);
         return CICLO_FALLO;
@@ -148,19 +148,19 @@ ciclo_resultado_t punto_e_ciclo(const punto_e_cfg_t *cfg, time_t ahora) {
 
     for (size_t i = 0; i < n; i++) {
         roa_t roa;
-        if (roa_parsear(lineas[i], &roa, err, sizeof err) != 0) {
+        if (roa_parse(lineas[i], &roa, err, sizeof err) != 0) {
             logf_("ROA descartado: %s", err);
             continue;
         }
         cert_cache_t *cc = cache_obtener(&cache, &cfg->repo, roa.num_emisor);
         if (!cc) {                         /* fallo de red: abandonar el ciclo completo */
-            roa_liberar(&roa);
+            roa_free(&roa);
             res = CICLO_FALLO;
             goto limpiar;
         }
         if (!cc->cert) {
             logf_("ROA %s (isla %d, emisor %ld) descartado: %s", roa.ip, roa.isla, roa.num_emisor, cc->motivo);
-            roa_liberar(&roa);
+            roa_free(&roa);
             continue;
         }
         const char *motivo = "";
@@ -172,7 +172,7 @@ ciclo_resultado_t punto_e_ciclo(const punto_e_cfg_t *cfg, time_t ahora) {
             logf_("ROA %s (isla %d, emisor %ld) descartado: %s", roa.ip, roa.isla, roa.num_emisor, motivo);
             if (v == ROA_RECHAZADO_RECUPERABLE) recuperables++;
         }
-        roa_liberar(&roa);
+        roa_free(&roa);
     }
 
     /* 4. Publicacion: solo el intercambio de punteros va dentro del candado.
@@ -186,7 +186,7 @@ ciclo_resultado_t punto_e_ciclo(const punto_e_cfg_t *cfg, time_t ahora) {
 limpiar:
     roa_tabla_destruir(nueva);
     cache_liberar(&cache);
-    roa_raices_liberar(&raices);
+    roa_free_roots(&raices);
     repo_liberar_lineas(lineas, n);
     if (res == CICLO_FALLO) logf_("ciclo abortado; se conserva la tabla anterior");
     return res;
