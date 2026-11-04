@@ -59,8 +59,8 @@ roa_veredicto_t roa_validar(const roa_t *roa, X509 *cert, const roa_trusted_root
 
 /* --- Parseo --- */
 /* 0 si esta bien; -1 si el formato es incorrecto (escribe el motivo en err). */
-int roa_parsear(const char *linea, roa_t *out, char *err, size_t errlen);
-void roa_liberar(roa_t *r);
+int roa_parse(const char *linea, roa_t *out, char *err, size_t errlen);
+void roa_free(roa_t *r);
 
 /* ----------------------- Truststore ----------------------- */
 // Lee todas las raices del bundle PEM. Devuelve 0, o -1 si no hay ninguna.

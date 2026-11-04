@@ -8,26 +8,43 @@ static void poner_err(char *err, size_t n, const char *msg) {
 
 /* Decodifica base64 en una sola linea. Devuelve un buffer malloc (o NULL) y su largo. */
 static unsigned char *b64_decode(const char *s, size_t *length) {
-    if (!s || !length) return NULL;
+    if (!s || !length) {
+        fprintf(stderr, "Base64: puntero NULL\n");
+        return NULL;
+    }
 
-    *length = 0;
     size_t n = strlen(s);
+    fprintf(stderr, "Base64 recibido: %zu caracteres\n", n);
     
-    if (n == 0 || n % 4 != 0 || n > INT_MAX) return NULL;
+    if (n == 0) {
+        fprintf(stderr, "ERROR: cadena vacia\n");
+        return NULL;
+    }
+
+    if (n % 4 != 0) {
+        fprintf(stderr, "ERROR: longitud no multiplo de 4: %zu\n", n);
+        return NULL;
+    }
 
     for (size_t i = 0; i < n; i++) {
         unsigned char c = (unsigned char)s[i];
-        if (!(isalnum(c) || c == '+' || c == '/' || c == '=')) return NULL;
-        if (c == '=' && i < n - 2) return NULL;
+        if (!(isalnum(c) || c == '+' || c == '/' || c == '=')) { 
+            fprintf(stderr, "ERROR: caracter invalido en posicion %zu: 0x%02X\n", i, c);
+            return NULL;
+        }
     }
 
     unsigned char *out = malloc(n / 4 * 3 + 1);
 
-    if (!out) return NULL;
+    if (!out) {
+        fprintf(stderr, "ERROR: malloc\n");
+        return NULL;
+    }
 
     int len = EVP_DecodeBlock(out, (const unsigned char *)s, (int)n);
     
     if (len < 0) { 
+        fprintf(stderr, "ERROR: EVP_DecodeBlock\n");
         free(out); 
         return NULL; 
     }
@@ -66,7 +83,7 @@ static int ipv4_valida(const char *s) {
     return partes == 4 && *p == '\0';
 }
 
-int roa_parsear(const char *linea, roa_t *out, char *err, size_t errlen) {
+int roa_parse(const char *linea, roa_t *out, char *err, size_t errlen) {
     memset(out, 0, sizeof *out);
     char *copia = strdup(linea);
 
@@ -135,7 +152,7 @@ int roa_parsear(const char *linea, roa_t *out, char *err, size_t errlen) {
     return 0;
 }
 
-void roa_liberar(roa_t *r) {
+void roa_free(roa_t *r) {
     if (!r) return;
     free(r->texto_firmado);
     free(r->firma);
@@ -211,21 +228,49 @@ void roa_free_roots(roa_trusted_roots_t *r) {
 /* ---------------- certificados ---------------- */
 
 X509 *roa_cert_desde_b64(const char *b64) {
-    size_t n;
-    unsigned char *crudo = b64_decode(b64, &n);
+    size_t n = 0;
+    unsigned char *raw = b64_decode(b64, &n);
 
-    if (!crudo) return NULL;
+    if (!raw) {
+        fprintf(stderr, "ERROR: Base64 no valido\n");
+        return NULL;
+    }
+
+    fprintf(stderr, "Base64: %zu caracteres\n", strlen(b64));
+    fprintf(stderr, "Decodificado: %zu bytes\n", n);
+    fprintf(stderr, "Primeros bytes: ");
+    for (size_t i = 0; i < n && i < 30; i++)
+        fprintf(stderr, "%02X ", raw[i]);
+    fprintf(stderr, "\n");
+
     X509 *cert = NULL;
     static const char PEM_INI[] = "-----BEGIN CERTIFICATE-----";
-    if (n >= sizeof PEM_INI - 1 && memcmp(crudo, PEM_INI, sizeof PEM_INI - 1) == 0) {
-        BIO *bio = BIO_new_mem_buf(crudo, (int)n);
-        if (bio) { cert = PEM_read_bio_X509(bio, NULL, NULL, NULL); BIO_free(bio); }
+    if (n >= sizeof PEM_INI - 1 
+        && memcmp(raw, PEM_INI, sizeof PEM_INI - 1) == 0) {
+        
+        fprintf(stderr, "Formato detectado: PEM\n");
+        BIO *bio = BIO_new_mem_buf(raw, (int)n);
+        if (bio) { 
+            cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+            BIO_free(bio); 
+        }
     } else {
-        const unsigned char *p = crudo;
+        fprintf(stderr, "Formato detectado: DER\n");
+
+        const unsigned char *p = raw;
         cert = d2i_X509(NULL, &p, (long)n);
+
+        if (cert && p != raw + n)
+            fprintf(stderr, "ADVERTENCIA: bytes sobrantes despues del DER\n");
     }
-    free(crudo);
-    ERR_clear_error();
+
+    if (!cert) {
+        fprintf(stderr, "ERROR OPENSSL:\n");
+        ERR_print_errors_fp(stderr);
+    }
+
+    free(raw);
+    //ERR_clear_error();
     return cert;
 }
 
