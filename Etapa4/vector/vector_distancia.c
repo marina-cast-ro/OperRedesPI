@@ -64,8 +64,9 @@ void tabla_configurar_isla(tabla_enrutamiento_t *t, int id_isla, const char *ip,
 // Consulta si la ruta es valida segun la tabla ROA del punto E
 static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
     if (isla <= 0 || isla >= MAX_ISLAS) return 0;
-    const char *ip = t->ips[isla];
-    if (!ip || ip[0] == '\0') return 1;
+    (void)t;
+    char ip[32];
+    snprintf(ip, sizeof ip, "172.16.%d0.10", isla);
 
     roa_resultado_t res = roa_almacen_consultar(ip, isla, ahora);
     if (res == ROA_INVALID) {
@@ -472,30 +473,7 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
         }
     }
 
-    // Leer datos de las islas
-    char *islas_sec = strstr(buf, "\"islas\"");
-    if (islas_sec) {
-        char *fin_islas = strchr(islas_sec, '}');
-        for (int id = 1; id < MAX_ISLAS; id++) {
-            char patron[32];
-            snprintf(patron, sizeof(patron), "\"%d\"", id);
-            char *pos = strstr(islas_sec, patron);
-            if (pos && (!fin_islas || pos < fin_islas)) {
-                char ip[32] = {0}, equipo[32] = {0};
-                char *pos_ip = strstr(pos, "\"ip\"");
-                if (pos_ip && (!fin_islas || pos_ip < fin_islas)) {
-                    sscanf(pos_ip, "\"ip\"%*[^\"]\"%31[^\"]\"", ip);
-                }
-                char *pos_eq = strstr(pos, "\"equipo\"");
-                if (pos_eq && (!fin_islas || pos_eq < fin_islas)) {
-                    sscanf(pos_eq, "\"equipo\"%*[^\"]\"%31[^\"]\"", equipo);
-                }
-                tabla_configurar_isla(t, id, ip, equipo);
-            }
-        }
-    }
-
-    // Leer vecinos directos y sus costos
+       // Leer vecinos directos: isla, IP en la VLAN de transito y costo
     char *vec_sec = strstr(buf, "\"vecinos\"");
     if (vec_sec) {
         for (int id = 1; id < MAX_ISLAS; id++) {
@@ -503,12 +481,15 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
             snprintf(patron, sizeof(patron), "\"%d\"", id);
             char *pos = strstr(vec_sec, patron);
             if (pos) {
+                char ip[32] = {0}, equipo[32] = {0};
                 int costo = 1;
+                char *pos_ip = strstr(pos, "\"ip\"");
+                char *pos_eq = strstr(pos, "\"equipo\"");
                 char *pos_costo = strstr(pos, "\"costo\"");
-                if (pos_costo) {
-                    sscanf(pos_costo, "\"costo\"%*[^0-9]%d", &costo);
-                }
-                tabla_configurar_vecino(t, id, costo, t->ips[id], t->nombres[id]);
+                if (pos_ip) sscanf(pos_ip, "\"ip\"%*[^\"]\"%31[^\"]\"", ip);
+                if (pos_eq) sscanf(pos_eq, "\"equipo\"%*[^\"]\"%31[^\"]\"", equipo);
+                if (pos_costo) sscanf(pos_costo, "\"costo\"%*[^0-9]%d", &costo);
+                tabla_configurar_vecino(t, id, costo, ip, equipo);
             }
         }
     }
