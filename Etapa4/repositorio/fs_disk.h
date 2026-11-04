@@ -5,49 +5,71 @@
 #include <stddef.h>
 
 // Fisico
-#define DISK_PLATTERS 2
-#define DISK_TRACKS_PER_PLATTER 16
-#define DISK_SECTORS_PER_TRACK 8
-#define DISK_SECTOR_SIZE 128
-#define DISK_TOTAL_SECTORS (DISK_SECTORS_PER_TRACK * DISK_TRACKS_PER_PLATTER * DISK_PLATTERS)
-#define DISK_SIZE_BYTES (DISK_TOTAL_SECTORS * DISK_SECTOR_SIZE)
+#define DISK_PLATTERS               2
+#define DISK_TRACKS_PER_PLATTER     16
+#define DISK_SECTORS_PER_TRACK      8
+#define DISK_SECTOR_SIZE            128
+#define DISK_TOTAL_SECTORS          (DISK_SECTORS_PER_TRACK * DISK_TRACKS_PER_PLATTER * DISK_PLATTERS)
+#define DISK_SIZE_BYTES             (DISK_TOTAL_SECTORS * DISK_SECTOR_SIZE)
 
-// Logico
-#define FS_BLOCK_SIZE 512
-#define FS_TOTAL_BLOCKS (DISK_SIZE_BYTES / FS_BLOCK_SIZE)
-#define FS_INODES 32
-#define INODE_SIZE 128
-#define DIR_ENTRY_SIZE 32
-#define FS_MAGIC_NUMBER 0x524F4153
+// Logico (Sistema de archivos)
+#define FS_BLOCK_SIZE               512
+#define FS_TOTAL_BLOCKS             (DISK_SIZE_BYTES / FS_BLOCK_SIZE)
+#define FS_INODES                   32
+#define INODE_SIZE                  128
+#define DIR_ENTRY_SIZE              32
+#define FS_MAGIC_NUMBER             0x524F4153
 
-// Contiene la información de control global del sistema
+// Tipos de inodo
+#define FS_TYPE_FREE                0
+#define FS_TYPE_FILE                1
+#define FS_TYPE_DIR                 2
+
+// Offsets de bloques lógicos
+#define FS_SUPERBLOCK_BLOCK         0
+#define FS_INODE_BITMAP_BLOCK       1
+#define FS_DATA_BITMAP_BLOCK        2
+#define FS_INODE_TABLE_START        3
+#define FS_INODE_TABLE_BLOCKS       8
+#define FS_DATA_BLOCKS_START        11
+
+// Estructura del Superbloque: Contiene la información de control global del sistema
 typedef struct __attribute__((packed)) {
     // campos
-    uint32_t magic_number; // numero magico para validar si el disco esta formateado
-    uint64_t version;      // Contador incremental que pide storageVersion()
-    uint32_t total_blocks; // Cantidad de bloques logicos del sistema de archivos
-    uint32_t inode_count;  // Cantidad de inodos configurados
-    uint32_t free_blocks; // Cantidad de bloques libres
-    uint32_t free_inodes; // Cantidad de inodos libres
+    uint32_t magic_number;          // numero magico para validar si el disco esta formateado
+    uint64_t version;               // Contador incremental que pide storageVersion()
+    uint32_t total_blocks;          // Cantidad de bloques logicos del sistema de archivos
+    uint32_t inode_count;           // Cantidad de inodos configurados
+    uint32_t free_blocks;           // Cantidad de bloques libres
+    uint32_t free_inodes;           // Cantidad de inodos libres
+    uint8_t  padding[480];          // Para completar los 512 bytes del bloque 0
 } SuperBlock;
 
+// Estructura del Inodo (Exactamente 128 bytes)
 typedef struct __attribute__((packed)) {
     // campos
-    uint32_t is_used; // 1 si el inodo esta en uso, 0 si esta libre
-    uint32_t file_size; // Tamaño del archivo en bytes
-    uint32_t modified_at; // Timestamp de la ultima modificacion
-    char owner[64]; // Nombre del propietario del archivo
-    uint32_t direct_block; // Puntero al bloque de datos directo
+    uint16_t inode_id;
+    uint8_t  type;                  // FS_TYPE_FILE o FS_TYPE_DIR
+    uint32_t is_used;               // 1 en uso, 0 libre
+    uint16_t permissions;
+    uint16_t reserved_align;
+    uint32_t file_size;             // Tamaño del archivo en bytes
+    uint64_t created_at;            // Timestamp de la creacion
+    uint64_t modified_at;           // Timestamp de la ultima modificacion
+    char owner[64];                 // Nombre del propietario del archivo
+    uint32_t direct_blocks[4];      // 4 punteros directos exigidos por el diseño
+    uint32_t indirect_block;        // 1 puntero indirecto simple exigido
+    uint8_t  padding[16];           // Completa 128 bytes exactos
 
 } Inode;
 
+// Entrada de Directorio (Exactamente 32 bytes)
 typedef struct __attribute__((packed)) {
     // campos
-    uint16_t inode_index; // Indice del inodo al que pertenece la entrada
-    uint8_t is_used; // 1 si la entrada esta en uso, 0 si esta libre
-    char ip[16]; // Direccion IP del propietario del archivo
-    
+    uint16_t inode_index;           // Indice del inodo al que pertenece la entrada
+    uint8_t is_used;                // 1 si la entrada esta en uso, 0 si esta libre  
+    char ip[16];                    // Direccion IP del propietario del archivo
+    uint8_t padding[13];            // Completa 32 bytes exactos
 } DirEntry;
-
 
 #endif
