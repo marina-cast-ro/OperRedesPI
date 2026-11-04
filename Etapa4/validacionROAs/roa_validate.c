@@ -1,5 +1,12 @@
 #include "roa_validate.h"
 
+// Con -DROA_DEBUG vuelven los mensajes de depuracion
+#ifdef ROA_DEBUG
+#define depurar(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define depurar(...) ((void)0)
+#endif
+
 static void poner_err(char *err, size_t n, const char *msg) {
     if (err && n) snprintf(err, n, "%s", msg);
 }
@@ -9,27 +16,27 @@ static void poner_err(char *err, size_t n, const char *msg) {
 /* Decodifica base64 en una sola linea. Devuelve un buffer malloc (o NULL) y su largo. */
 static unsigned char *b64_decode(const char *s, size_t *length) {
     if (!s || !length) {
-        fprintf(stderr, "Base64: puntero NULL\n");
+        depurar("Base64: puntero NULL\n");
         return NULL;
     }
 
     size_t n = strlen(s);
-    fprintf(stderr, "Base64 recibido: %zu caracteres\n", n);
+    depurar("Base64 recibido: %zu caracteres\n", n);
     
     if (n == 0) {
-        fprintf(stderr, "ERROR: cadena vacia\n");
+        depurar("ERROR: cadena vacia\n");
         return NULL;
     }
 
     if (n % 4 != 0) {
-        fprintf(stderr, "ERROR: longitud no multiplo de 4: %zu\n", n);
+        depurar("ERROR: longitud no multiplo de 4: %zu\n", n);
         return NULL;
     }
 
     for (size_t i = 0; i < n; i++) {
         unsigned char c = (unsigned char)s[i];
         if (!(isalnum(c) || c == '+' || c == '/' || c == '=')) { 
-            fprintf(stderr, "ERROR: caracter invalido en posicion %zu: 0x%02X\n", i, c);
+            depurar("ERROR: caracter invalido en posicion %zu: 0x%02X\n", i, c);
             return NULL;
         }
     }
@@ -37,14 +44,14 @@ static unsigned char *b64_decode(const char *s, size_t *length) {
     unsigned char *out = malloc(n / 4 * 3 + 1);
 
     if (!out) {
-        fprintf(stderr, "ERROR: malloc\n");
+        depurar("ERROR: malloc\n");
         return NULL;
     }
 
     int len = EVP_DecodeBlock(out, (const unsigned char *)s, (int)n);
     
     if (len < 0) { 
-        fprintf(stderr, "ERROR: EVP_DecodeBlock\n");
+        depurar("ERROR: EVP_DecodeBlock\n");
         free(out); 
         return NULL; 
     }
@@ -232,40 +239,40 @@ X509 *roa_cert_desde_b64(const char *b64) {
     unsigned char *raw = b64_decode(b64, &n);
 
     if (!raw) {
-        fprintf(stderr, "ERROR: Base64 no valido\n");
+        depurar("ERROR: Base64 no valido\n");
         return NULL;
     }
 
-    fprintf(stderr, "Base64: %zu caracteres\n", strlen(b64));
-    fprintf(stderr, "Decodificado: %zu bytes\n", n);
-    fprintf(stderr, "Primeros bytes: ");
+    depurar("Base64: %zu caracteres\n", strlen(b64));
+    depurar("Decodificado: %zu bytes\n", n);
+    depurar("Primeros bytes: ");
     for (size_t i = 0; i < n && i < 30; i++)
-        fprintf(stderr, "%02X ", raw[i]);
-    fprintf(stderr, "\n");
+        depurar("%02X ", raw[i]);
+    depurar("\n");
 
     X509 *cert = NULL;
     static const char PEM_INI[] = "-----BEGIN CERTIFICATE-----";
     if (n >= sizeof PEM_INI - 1 
         && memcmp(raw, PEM_INI, sizeof PEM_INI - 1) == 0) {
         
-        fprintf(stderr, "Formato detectado: PEM\n");
+        depurar("Formato detectado: PEM\n");
         BIO *bio = BIO_new_mem_buf(raw, (int)n);
         if (bio) { 
             cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
             BIO_free(bio); 
         }
     } else {
-        fprintf(stderr, "Formato detectado: DER\n");
+        depurar("Formato detectado: DER\n");
 
         const unsigned char *p = raw;
         cert = d2i_X509(NULL, &p, (long)n);
 
         if (cert && p != raw + n)
-            fprintf(stderr, "ADVERTENCIA: bytes sobrantes despues del DER\n");
+            depurar("ADVERTENCIA: bytes sobrantes despues del DER\n");
     }
 
     if (!cert) {
-        fprintf(stderr, "ERROR OPENSSL:\n");
+        depurar("ERROR OPENSSL:\n");
         ERR_print_errors_fp(stderr);
     }
 
