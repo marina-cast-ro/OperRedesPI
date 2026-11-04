@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
 
 // Fisico
 #define DISK_PLATTERS               2
@@ -81,8 +84,8 @@ int diskReadSector(uint32_t lba, void *buffer);
 int diskWriteSector(uint32_t lba, const void *buffer);
 
 // Operaciones de bloque lógico (512 bytes = 4 sectores)
-int fsReadBlock(uint32_t block_num, void *buffer);
-int fsWriteBlock(uint32_t block_num, const void *buffer);
+int fsReadBlock(uint32_t blockNum, void *buffer);
+int fsWriteBlock(uint32_t blockNum, const void *buffer);
 
 // Formateo / Inicialización del disco y superbloque
 int fsFormat(void);
