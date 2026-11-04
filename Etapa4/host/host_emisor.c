@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -271,7 +272,7 @@ int publicar_roa(const char *host, int puerto, int num_emisor, int isla, const c
 
 int main(int argc, char *argv[]) {
     printf("=== NODO EMISOR (Host) - Publicador de ROAs ===\n\n");
-    if (argc < 7) {
+    if (argc < 8) {
         printf("Uso: %s <host_repo> <puerto> <num_emisor> <isla> <ip_anunciada> <ruta_key> <ruta_cert> [duracion_seg]\n", argv[0]);
         printf("Ejemplo:\n");
         printf("  %s 127.0.0.1 9000 101 1 10.0.1.1 ../certificados/nodo.key ../certificados/nodo.crt 86400\n\n", argv[0]);
