@@ -92,7 +92,16 @@ X509 *certFromBase64(const char *base64) {
     }
 
     X509 *cert = NULL;
-    if (derLen > 0) {
+    const char pemHeader[] = "-----BEGIN CERTIFICATE-----";
+    int headerLen = (int)sizeof pemHeader - 1;
+    if (derLen >= headerLen && memcmp(der, pemHeader, (size_t)headerLen) == 0) {
+        // Otro grupo puede mandar el PEM completo en vez del DER
+        BIO *bio = BIO_new_mem_buf(der, derLen);
+        if (bio != NULL) {
+            cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+            BIO_free(bio);
+        }
+    } else if (derLen > 0) {
         const unsigned char *cursor = der;
         cert = d2i_X509(NULL, &cursor, derLen);
         // Si sobraron bytes después del certificado, el texto no era solo un certificado
