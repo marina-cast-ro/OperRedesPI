@@ -1,24 +1,16 @@
 {
-  "mi_id": 1,
+  "mi_id": 2,
   "nombre": "Koopatroopas",
   "puerto_tcp": 5005,
+  "red_local": "172.16.20.0/24",
+  "servidor_local": "172.16.20.10",
   "intervalo_announce_seg": 30,
   "tolerancia_silencio_seg": 90,
   "ttl_inicial": 8,
 
-  "_comentario_islas": "Numero de isla y sus IPs",
-  "islas": {
-    "1": { "equipo": "Koopatroopas",            "ip": "10.0.1.1" },
-    "2": { "equipo": "SHELL",                   "ip": "10.0.2.1" },
-    "3": { "equipo": "4bits",                   "ip": "10.0.3.1" },
-    "4": { "equipo": "Pirateados",              "ip": "10.0.4.1" },
-    "5": { "equipo": "Pi de Frambuesa",         "ip": "10.0.5.1" }
-  },
-
-  "_comentario_vecinos": "Enlaces fisicos directos y el costo de enlace",
   "vecinos": {
-    "3": { "equipo": "4bits",           "costo": 5 },
-    "4": { "equipo": "Pirateados",      "costo": 2 },
-    "5": { "equipo": "Pi de Frambuesa", "costo": 2 }
+    "1": { "equipo": "Pirateados",      "ip": "172.30.12.1", "puerto": 5005, "costo": 2 },
+    "4": { "equipo": "4bits",           "ip": "172.30.24.2", "puerto": 5005, "costo": 5 },
+    "5": { "equipo": "Pi de Frambuesa", "ip": "172.30.25.2", "puerto": 5005, "costo": 2 }
   }
 }
