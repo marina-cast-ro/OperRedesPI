@@ -5,24 +5,36 @@
 PUERTO="${1:-9000}"
 DIR_BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR_REPO="$DIR_BASE/Etapa4/repositorio"
-TRUSTSTORE="$DIR_BASE/Etapa4/certificados/trusted-roots.pem"
+
+# Buscar truststore en las ubicaciones del proyecto
+if [ -f "$DIR_BASE/Etapa4/certificados/trusted-roots.pem" ]; then
+    TRUSTSTORE="$DIR_BASE/Etapa4/certificados/trusted-roots.pem"
+elif [ -f "$DIR_BASE/Etapa4/validacionROAs/prueba/truststore/trusted-roots.pem" ]; then
+    TRUSTSTORE="$DIR_BASE/Etapa4/validacionROAs/prueba/truststore/trusted-roots.pem"
+else
+    TRUSTSTORE="$DIR_BASE/Etapa4/certificados/trusted-roots.pem"
+fi
 
 echo "=============================================="
 echo "    INICIANDO REPOSITORIO DE ROAS (PUERTO $PUERTO)"
 echo "=============================================="
+echo "[*] Truststore: $TRUSTSTORE"
 
 # 1. Compilar el servidor si no existe el binario
 if [ ! -f "$DIR_REPO/build/repoServer" ]; then
     echo "[*] Compilando repoServer..."
-    cd "$DIR_REPO"
-    make
+    cd "$DIR_REPO" && make
 fi
 
-# 2. Verificar o crear truststore minimo si hiciera falta
+# 2. Verificar que el truststore exista
 if [ ! -f "$TRUSTSTORE" ]; then
-    echo "[!] No se encontro $TRUSTSTORE, buscando certificados en $DIR_BASE/Etapa4/certificados..."
+    echo "[!] No se encontro $TRUSTSTORE, copiando de validacionROAs..."
     mkdir -p "$DIR_BASE/Etapa4/certificados"
-    cat "$DIR_BASE/Etapa4/certificados"/*.crt 2>/dev/null > "$TRUSTSTORE" || touch "$TRUSTSTORE"
+    if [ -f "$DIR_BASE/Etapa4/validacionROAs/prueba/truststore/trusted-roots.pem" ]; then
+        cp "$DIR_BASE/Etapa4/validacionROAs/prueba/truststore/trusted-roots.pem" "$TRUSTSTORE"
+    else
+        touch "$TRUSTSTORE"
+    fi
 fi
 
 # 3. Mostrar las IPs disponibles en esta maquina
@@ -34,6 +46,6 @@ echo "Repositorio escuchando en puerto $PUERTO..."
 echo "Presiona Ctrl+C para detener."
 echo "----------------------------------------------"
 
-# 4. Ejecutar el servidor
+# 4. Ejecutar el servidor (el orden de argumentos en repoServer es: [trusted-roots.pem] [puerto])
 cd "$DIR_REPO"
-exec ./build/repoServer "$PUERTO" "$TRUSTSTORE"
+exec ./build/repoServer "$TRUSTSTORE" "$PUERTO"
