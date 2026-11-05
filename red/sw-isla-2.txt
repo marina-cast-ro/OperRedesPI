@@ -48,12 +48,15 @@ interface FastEthernet0/1
  switchport mode trunk
 !
 interface FastEthernet0/2
- description CLIENTE_EMISOR
+ description HOST_EMISOR_Y_RECEPTOR
  switchport access vlan 20
  switchport mode access
+ spanning-tree portfast
 !
 interface FastEthernet0/3
- shutdown
+ description ENRUTADOR_LOCAL
+ switchport trunk allowed vlan 20,112,124-125
+ switchport mode trunk
 !
 interface FastEthernet0/4
  shutdown
@@ -71,12 +74,16 @@ interface FastEthernet0/8
  shutdown
 !
 interface FastEthernet0/9
- description SERVIDOR_RECEPTOR
+ description SERVIDOR_REPOSITORIO_ROA
  switchport access vlan 20
  switchport mode access
+ spanning-tree portfast
 !
 interface FastEthernet0/10
- shutdown
+ description HOST_SECUNDARIO_VLAN20
+ switchport access vlan 20
+ switchport mode access
+ spanning-tree portfast
 !
 interface FastEthernet0/11
  shutdown
