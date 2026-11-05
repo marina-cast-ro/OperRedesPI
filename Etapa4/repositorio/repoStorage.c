@@ -56,7 +56,7 @@ int fsReadBlock(uint32_t blockNum, void *buffer) {
     for(size_t i = 0; i < 4; ++i) {
         uint8_t* dest = ((uint8_t*)buffer) + (i * DISK_SECTOR_SIZE);
         if (diskReadSector(initialLBA + i, dest) != 0) {
-            return -1;
+            return -1; // VALOR DE ERROR
         }
     }
 
@@ -74,13 +74,14 @@ int fsWriteBlock(uint32_t blockNum, const void *buffer) {
     for(size_t i = 0; i < 4; ++i) {
         const uint8_t* src = ((const uint8_t*)buffer) + (i * DISK_SECTOR_SIZE);
         if (diskWriteSector(initialLBA + i, src) != 0) {
-            return -1;
+            return -1; // VALOR DE ERROR
         }
     }
 
     return 0;
 } 
 
+// Formateo / Inicialización del disco y superbloque
 int fsFormat(void) {
     memset(disk, 0, DISK_SIZE_BYTES);
 
@@ -101,5 +102,31 @@ int fsFormat(void) {
     if (fsWriteBlock(0, blockBuffer) != 0) {
         return -1;
     }
+
+    printf("[FS] Formateo completado: 32 KB inicializados, Superbloque en bloque 0, %d inodos disponibles.\n", FS_INODES);
+    return 0;
+}
+
+// Leer UN SOLO inode dentro de un bloque
+int fsReadInode(uint32_t inodeIdx, Inode *inodeOut) {
+    if (inodeOut == NULL || inodeIdx >= FS_INODES) {
+        return -1; // VALOR DE ERROR
+    }
+
+    // Calculo de bloque
+    uint32_t blockNum = FS_INODE_TABLE_START + (inodeIdx / 4);
+
+    // Calculo del offset dentro del bloque
+    size_t offset = (inodeIdx % 4) * sizeof(Inode);
+
+    // Buffer para leer el bloque completo
+    uint8_t blockBuffer[FS_BLOCK_SIZE];
+
+    if (fsReadBlock(blockNum, blockBuffer) != 0) {
+        return -1; // VALOR DE ERROR
+    }
+
+    memcpy(inodeOut, blockBuffer + offset, sizeof(Inode));
+
     return 0;
 }
