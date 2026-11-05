@@ -194,6 +194,12 @@ static void *hilo_conexion(void *arg) {
 
             if (strcmp(accion, "ENTREGAR") == 0) {
                 printf("[DATA RECIBIDO] %s\n", nuevo_msg);
+                // Guardar en output.txt como pide el enunciado
+                FILE *f = fopen("output.txt", "a");
+                if (f) {
+                    fprintf(f, "%s\n", nuevo_msg);
+                    fclose(f);
+                }
             } else if (strcmp(accion, "REENVIAR") == 0) {
                 strcat(nuevo_msg, "\n");
                 enviar_tcp(g_tabla.ips[siguiente_salto], g_tabla.puerto_tcp, nuevo_msg);
