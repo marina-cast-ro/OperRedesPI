@@ -90,7 +90,14 @@ int fsWriteBlock(uint32_t blockNum, const void *buffer);
 // Formateo / Inicialización del disco y superbloque
 int fsFormat(void);
 
-// Leer UN SOLO inode dentro de un bloque
+// Leer/escribir UN SOLO inode dentro de un bloque
 int fsReadInode(uint32_t inodeIdx, Inode *inodeOut);
+int fsWriteInode(uint32_t inodeIdx, const Inode *inodeIn);
+
+// Buscar un inodo libre
+int fsFindFreeInode(void);
+
+// Buscar un bloque de datos libre
+int fsFindFreeBlock(void);
 
 #endif

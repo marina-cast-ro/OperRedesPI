@@ -3,7 +3,7 @@
 
 static uint8_t disk[DISK_SIZE_BYTES];
 
-// Traduccion fisica: Convierte plato, pista y sector a indice lineal LBA
+// --- Traduccion fisica: Convierte plato, pista y sector a indice lineal LBA ---
 uint32_t diskChsToLBA(uint32_t platter, uint32_t track, uint32_t sector) {
     // Validacion de limites en numero de plato, pista y sector
     if (platter >= DISK_PLATTERS || 
@@ -19,7 +19,7 @@ uint32_t diskChsToLBA(uint32_t platter, uint32_t track, uint32_t sector) {
     return lba;
 }
 
-// Operaciones de sector físico (128 bytes)
+// --- Operaciones de sector físico (128 bytes) ---
 int diskReadSector(uint32_t lba, void *buffer) {
     // Validacion de existencia de buffer y limite de lba
     if (buffer == NULL || lba >= DISK_TOTAL_SECTORS) {
@@ -44,7 +44,7 @@ int diskWriteSector(uint32_t lba, const void *buffer) {
     return 0; // VALOR DE EXITOR
 }
 
-// Operaciones de bloque lógico (512 bytes = 4 sectores)
+// --- Operaciones de bloque lógico (512 bytes = 4 sectores) ---
 int fsReadBlock(uint32_t blockNum, void *buffer) {
     // Validacion de existencia de buffer y limite de numero de bloque
     if (buffer == NULL || blockNum >= FS_TOTAL_BLOCKS) {
@@ -81,7 +81,7 @@ int fsWriteBlock(uint32_t blockNum, const void *buffer) {
     return 0;
 } 
 
-// Formateo / Inicialización del disco y superbloque
+// --- Formateo / Inicialización del disco y superbloque ---
 int fsFormat(void) {
     memset(disk, 0, DISK_SIZE_BYTES);
 
@@ -107,7 +107,7 @@ int fsFormat(void) {
     return 0;
 }
 
-// Leer UN SOLO inode dentro de un bloque
+// --- Leer UN SOLO inode dentro de un bloque ---
 int fsReadInode(uint32_t inodeIdx, Inode *inodeOut) {
     if (inodeOut == NULL || inodeIdx >= FS_INODES) {
         return -1; // VALOR DE ERROR
@@ -129,4 +129,64 @@ int fsReadInode(uint32_t inodeIdx, Inode *inodeOut) {
     memcpy(inodeOut, blockBuffer + offset, sizeof(Inode));
 
     return 0;
+}
+
+// --- Escribir en UN SOLO inode dentro de un bloque ---
+int fsWriteInode(uint32_t inodeIdx, const Inode *inodeIn) {
+    if (inodeIn == NULL || inodeIdx >= FS_INODES) {
+        return -1; // VALOR DE ERROR
+    }
+
+    // Calculo de bloque
+    uint32_t blockNum = FS_INODE_TABLE_START + (inodeIdx / 4);
+
+    // Calculo del offset dentro del bloque
+    size_t offset = (inodeIdx % 4) * sizeof(Inode);
+
+    // Buffer para leer el bloque completo
+    uint8_t blockBuffer[FS_BLOCK_SIZE];
+
+    if (fsReadBlock(blockNum, blockBuffer) != 0) {
+        return -1; // VALOR DE ERROR
+    }
+
+    memcpy(blockBuffer + offset, inodeIn, sizeof(Inode));
+
+    if (fsWriteBlock(blockNum, blockBuffer) != 0) {
+        return -1;
+    }
+
+    return 0;    
+}
+
+// --- Buscar un inodo libre ---
+int fsFindFreeInode(void) {
+    for(uint32_t i = 0; i < FS_INODES; i++) {
+        Inode inode;
+        
+        if(fsReadInode(i, &inode) == 0) {
+            if (inode.isUsed == 0) {
+                return (int)i; // Se ha encontrado un espacio disponible 
+            }
+        }
+    }
+
+    return -1; // VALOR DE ERROR: No se ha encontrado inodo libre
+}
+
+// --- Buscar un bloque de datos libre ---
+int fsFindFreeBlock(void) {
+    uint8_t bitmap[FS_BLOCK_SIZE];
+
+    if (fsReadBlock(FS_DATA_BITMAP_BLOCK, bitmap) != 0) {
+        return -1;
+    }
+
+    for(uint32_t b = FS_DATA_BLOCKS_START; b < FS_TOTAL_BLOCKS; b++) {
+        if (bitmap[b] == 0) {
+            return (int)b; // Se ha encontrado un bloque libre
+        }
+    }
+
+    return -1; // VALOR DE ERROR: No se ha encontrado bloque disponible
 }
