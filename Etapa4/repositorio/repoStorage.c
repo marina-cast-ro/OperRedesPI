@@ -163,3 +163,60 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
     printf("[FS] Guardado ROA: IP %s -> Inodo %d, Bloque %d\n", ip, inodeIdx, blockIdx);
     return STORAGE_OK;
 }
+
+// --- Borra el ROA de esa IP y sube la versión ---
+// Retorna STORAGE_OK o STORAGE_NOT_FOUND
+int storageDelete(const char *ip) {
+    if (ip == NULL) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    DirEntry entry;
+    uint32_t entryIndex = 0;
+
+    if (fsFindDirEntry(ip, &entry, &entryIndex) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    Inode inode;
+    if (fsReadInode(entry.inodeIndex, &inode) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    // Liberar el bloque de datos en el bitmap
+    int blockIndex = inode.directBlocks[0];
+
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+    buffer[blockIndex] = 0;
+
+    if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    // Limpiar el inodo
+    memset(&inode, 0, sizeof(Inode));
+    if (fsWriteInode(entry.inodeIndex, &inode) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    // Remover del directorio
+    if (fsRemoveDirEntry(entryIndex) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    // Incrementar versión del Superbloque
+    if (fsReadBlock(FS_SUPERBLOCK_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+    SuperBlock *sb = (SuperBlock *)buffer;
+    sb->version++;
+    if (fsWriteBlock(FS_SUPERBLOCK_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    printf("[FS] Eliminado ROA: IP %s (Inodo %u liberado)\n", ip, entry.inodeIndex);
+    return STORAGE_OK;
+} 
