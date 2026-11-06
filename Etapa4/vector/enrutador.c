@@ -181,20 +181,30 @@ static void *hilo_conexion(void *arg) {
             char ip_remota[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &peer.sin_addr, ip_remota, sizeof(ip_remota));
 
-            // Se acepta la conexion SOLO SI la IP origen es la de un vecino configurado
+            // Se acepta la conexion SOLO SI la IP origen es la de un vecino PRE-configurado
             int id_vecino = 0;
             for (int v = 1; v < MAX_ISLAS; v++) {
-                if (strcmp(g_tabla.ips[v], ip_remota) == 0) {
+                if (g_tabla.vecinos[v].configurado && strcmp(g_tabla.ips[v], ip_remota) == 0) {
                     id_vecino = v;
                     break;
                 }
             }
+
+            /* SE BORRO ESTO YA QUE PERMITE ANNOUNCE FALSOS, DE VECINOS NO CONFIGURADOS POR NOSOTROS
             // Si la IP no coincidio directamente, intentar extraer la isla del propio mensaje ANNOUNCE
             if (id_vecino == 0) {
                 int isla_msg = 0;
                 if (sscanf(buffer, "ANNOUNCE|%d|", &isla_msg) == 1 && isla_msg > 0 && isla_msg < MAX_ISLAS) {
                     id_vecino = isla_msg;
                 }
+            }
+            **/
+
+            // id_vecino DEBE ser algun numero entre 1 a MAX_ISLAS (32)
+            if (id_vecino == 0) {
+                fprintf(stderr, "[SEGURIDAD] ANNOUNCE descartado: %s no es un vecino configurado\n", ip_remota);
+                close(client_sock);
+                return NULL;
             }
 
             int destinos[MAX_ISLAS];
