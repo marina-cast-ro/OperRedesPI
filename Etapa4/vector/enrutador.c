@@ -171,10 +171,17 @@ static void *hilo_conexion(void *arg) {
             // Identificar vecino por su IP
             struct sockaddr_in peer;
             socklen_t peer_len = sizeof(peer);
-            getpeername(client_sock, (struct sockaddr *)&peer, &peer_len);
+            
+            // Verificacion de peer
+            if (getpeername(client_sock, (struct sockaddr *)&peer, &peer_len) != 0) {
+                close(client_sock);
+                return NULL;
+            }
+
             char ip_remota[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &peer.sin_addr, ip_remota, sizeof(ip_remota));
 
+            // Se acepta la conexion SOLO SI la IP origen es la de un vecino configurado
             int id_vecino = 0;
             for (int v = 1; v < MAX_ISLAS; v++) {
                 if (strcmp(g_tabla.ips[v], ip_remota) == 0) {

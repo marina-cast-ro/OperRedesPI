@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "vector_distancia.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -367,7 +368,9 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
 
                 // Si contiene ':' o ',', es el formato compacto de la pizarra
                 if (strchr(campo2, ':') != NULL) {
-                    char *token = strtok(campo2, ",");
+                    // 
+                    char *guardado = NULL;
+                    char *token = strtok_r(campo2, ",", &guardado);
                     while (token && count < max_entradas) {
                         int d = 0, c = 0;
                         if (sscanf(token, "%d:%d", &d, &c) == 2) {
@@ -375,7 +378,7 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
                             costos_out[count] = c;
                             count++;
                         }
-                        token = strtok(NULL, ",");
+                        token = strtok_r(NULL, ",", &guardado);
                     }
                 } else {
                     // Formato 1: ANNOUNCE|destino|costo
