@@ -284,13 +284,14 @@ size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destino
     return count;
 }
 
-// Convierte las rutas en lineas ANNOUNCE|destino|costo
+// Convierte las rutas al formato estandar acordado: ANNOUNCE|<isla>|<dest1>:<cost1>,<dest2>:<cost2>...
 int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, char *buffer_out, size_t max_len) {
     if (!t || !buffer_out || max_len == 0) return -1;
     buffer_out[0] = '\0';
 
     if (muerte) {
-        snprintf(buffer_out, max_len, "ANNOUNCE|%d|-1\n", t->mi_id);
+        // Aviso de muerte: costo -1 para nuestra propia isla
+        snprintf(buffer_out, max_len, "ANNOUNCE|%d|%d:-1\n", t->mi_id, t->mi_id);
         return 0;
     }
 
@@ -299,21 +300,32 @@ int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, 
     size_t n = tabla_armar_vector_para(t, vecino, destinos, costos, MAX_ISLAS);
 
     if (n == 0) {
-        // Keepalive con costo 0
-        snprintf(buffer_out, max_len, "ANNOUNCE|%d|0\n", t->mi_id);
+        // Keepalive propio con costo 0
+        snprintf(buffer_out, max_len, "ANNOUNCE|%d|%d:0\n", t->mi_id, t->mi_id);
         return 0;
     }
 
-    size_t escrito = 0;
+    int r = snprintf(buffer_out, max_len, "ANNOUNCE|%d|", t->mi_id);
+    if (r < 0 || (size_t)r >= max_len) return -1;
+    size_t escrito = (size_t)r;
+
     for (size_t i = 0; i < n; i++) {
-        int r = snprintf(buffer_out + escrito, max_len - escrito, "ANNOUNCE|%d|%d\n", destinos[i], costos[i]);
+        r = snprintf(buffer_out + escrito, max_len - escrito, "%s%d:%d",
+                     (i == 0) ? "" : ",", destinos[i], costos[i]);
         if (r < 0 || (size_t)r >= (max_len - escrito)) break;
-        escrito += r;
+        escrito += (size_t)r;
+    }
+
+    if (escrito < max_len - 1) {
+        buffer_out[escrito++] = '\n';
+        buffer_out[escrito] = '\0';
     }
     return 0;
 }
 
-// Convierte texto de ANNOUNCE a arreglos de destinos y costos
+// Convierte texto de ANNOUNCE a arreglos de destinos y costos (soporta ambos formatos)
+// Formato 1: ANNOUNCE|destino|costo (una linea por ruta)
+// Formato 2: ANNOUNCE|#isla|dest1:costo1,dest2:costo2... (pizarra)
 size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *costos_out, size_t max_entradas) {
     if (!texto || !destinos_out || !costos_out || max_entradas == 0) return 0;
 
@@ -322,22 +334,60 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
 
     while (*linea && count < max_entradas) {
         const char *fin_linea = strchr(linea, '\n');
-        char buf[128];
+        char buf[512];
         size_t len = fin_linea ? (size_t)(fin_linea - linea) : strlen(linea);
         if (len >= sizeof(buf)) len = sizeof(buf) - 1;
         memcpy(buf, linea, len);
         buf[len] = '\0';
 
-        char comando[32];
-        int d = 0, c = 0;
-        if (sscanf(buf, "%31[^|]|%d|%d", comando, &d, &c) == 3) {
-            for (char *p = comando; *p; p++) *p = (char)toupper((unsigned char)*p);
-            if (strcmp(comando, "ANNOUNCE") == 0) {
-                destinos_out[count] = d;
-                costos_out[count] = c;
-                count++;
+        // Quitar espacios o \r al final
+        while (len > 0 && (buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
+            buf[--len] = '\0';
+        }
+
+        // Separar por '|'
+        char *p1 = strchr(buf, '|');
+        if (p1) {
+            *p1 = '\0';
+            char *cmd = buf;
+            while (*cmd == ' ') cmd++;
+            char *p2 = strchr(p1 + 1, '|');
+
+            // Verificar si es ANNOUNCE
+            char cmd_upper[32];
+            size_t clen = strlen(cmd);
+            if (clen >= sizeof(cmd_upper)) clen = sizeof(cmd_upper) - 1;
+            for (size_t i = 0; i < clen; i++) cmd_upper[i] = (char)toupper((unsigned char)cmd[i]);
+            cmd_upper[clen] = '\0';
+
+            if (strcmp(cmd_upper, "ANNOUNCE") == 0 && p2) {
+                *p2 = '\0';
+                char *campo1 = p1 + 1; // En formato 1 es destino; en formato 2 es id_origen
+                char *campo2 = p2 + 1; // En formato 1 es costo; en formato 2 es "d1:c1,d2:c2"
+
+                // Si contiene ':' o ',', es el formato compacto de la pizarra
+                if (strchr(campo2, ':') != NULL) {
+                    char *token = strtok(campo2, ",");
+                    while (token && count < max_entradas) {
+                        int d = 0, c = 0;
+                        if (sscanf(token, "%d:%d", &d, &c) == 2) {
+                            destinos_out[count] = d;
+                            costos_out[count] = c;
+                            count++;
+                        }
+                        token = strtok(NULL, ",");
+                    }
+                } else {
+                    // Formato 1: ANNOUNCE|destino|costo
+                    int d = atoi(campo1);
+                    int c = atoi(campo2);
+                    destinos_out[count] = d;
+                    costos_out[count] = c;
+                    count++;
+                }
             }
         }
+
         if (!fin_linea) break;
         linea = fin_linea + 1;
     }

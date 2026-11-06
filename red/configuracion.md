@@ -85,7 +85,7 @@ nc -zv 172.16.20.10 9000
 En la **Compu 1 (Host)**:
 ```
 cd Etapa4/host
-./host_emisor 172.16.20.10 9000 101 2 172.16.20.100 ../certificados/nodo.key ../certificados/nodo.crt 86400
+./host_emisor 172.16.20.10 9000 201 2 172.16.20.10 ../certificados/nodo.key ../certificados/nodo.crt 86400
 ```
 *(Debe decir: `[OK] ROA publicado correctamente en el repositorio`)*
 

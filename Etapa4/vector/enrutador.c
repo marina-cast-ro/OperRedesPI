@@ -88,6 +88,12 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
             punto_e_cfg_t cfg = punto_e_cfg_defecto(ip, id);
             if (leer_campo_repositorio(json, "truststore", truststore, sizeof(truststore)) == 0) {
                 snprintf(cfg.ruta_truststore, sizeof(cfg.ruta_truststore), "%s", truststore);
+            } else if (access(cfg.ruta_truststore, R_OK) != 0) {
+                if (access("../certificados/trusted-roots.pem", R_OK) == 0) {
+                    snprintf(cfg.ruta_truststore, sizeof(cfg.ruta_truststore), "../certificados/trusted-roots.pem");
+                } else if (access("trusted-roots.pem", R_OK) == 0) {
+                    snprintf(cfg.ruta_truststore, sizeof(cfg.ruta_truststore), "trusted-roots.pem");
+                }
             }
             if (punto_e_iniciar(&cfg) == 0) {
                 g_punto_e_activo = 1;
@@ -174,6 +180,13 @@ static void *hilo_conexion(void *arg) {
                 if (strcmp(g_tabla.ips[v], ip_remota) == 0) {
                     id_vecino = v;
                     break;
+                }
+            }
+            // Si la IP no coincidio directamente, intentar extraer la isla del propio mensaje ANNOUNCE
+            if (id_vecino == 0) {
+                int isla_msg = 0;
+                if (sscanf(buffer, "ANNOUNCE|%d|", &isla_msg) == 1 && isla_msg > 0 && isla_msg < MAX_ISLAS) {
+                    id_vecino = isla_msg;
                 }
             }
 
