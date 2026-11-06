@@ -33,6 +33,8 @@ int diskReadSector(uint32_t lba, void *buffer) {
 }
 
 int diskWriteSector(uint32_t lba, const void *buffer) {
+    //fprintf(stderr, "[DISK DEBUG] write sector LBA=%u\n", lba);
+    fflush(stderr);
     // Validacion de existencia de buffer y limite de lba
     if (buffer == NULL || lba >= DISK_TOTAL_SECTORS) {
         return -1; // VALOR DE ERROR
@@ -55,7 +57,7 @@ int fsReadBlock(uint32_t blockNum, void *buffer) {
 
     for(size_t i = 0; i < 4; ++i) {
         uint8_t* dest = ((uint8_t*)buffer) + (i * DISK_SECTOR_SIZE);
-        if (diskReadSector(initialLBA + i, dest) != 0) {
+        if (diskReadSector((uint32_t)(initialLBA + i), dest) != 0) {
             return -1; // VALOR DE ERROR
         }
     }
@@ -73,7 +75,7 @@ int fsWriteBlock(uint32_t blockNum, const void *buffer) {
 
     for(size_t i = 0; i < 4; ++i) {
         const uint8_t* src = ((const uint8_t*)buffer) + (i * DISK_SECTOR_SIZE);
-        if (diskWriteSector(initialLBA + i, src) != 0) {
+        if (diskWriteSector((uint32_t)(initialLBA + i), src) != 0) {
             return -1; // VALOR DE ERROR
         }
     }
@@ -182,7 +184,7 @@ int fsFindFreeBlock(void) {
         return -1;
     }
 
-    for(uint32_t b = FS_DATA_BLOCKS_START; b < FS_TOTAL_BLOCKS; b++) {
+    for(uint32_t b = FS_DATA_BLOCKS_START + 1; b < FS_TOTAL_BLOCKS; b++) {
         if (bitmap[b] == 0) {
             return (int)b; // Se ha encontrado un bloque libre
         }

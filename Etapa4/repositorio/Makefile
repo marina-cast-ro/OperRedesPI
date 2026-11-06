@@ -10,9 +10,9 @@ CERTDIR := ../certificados
 CFLAGS := -Wall -Wextra -Wpedantic -Wshadow -Wconversion -pthread
 LDLIBS := -lcrypto
 
-STORAGE := repoStorageMemory.c
-SOURCES := repoServer.c repoCommands.c $(STORAGE) $(CERTDIR)/certificates.c
-HEADERS := repoCommands.h repoStorage.h $(CERTDIR)/certificates.h
+STORAGE := repoStorage.c
+SOURCES := repoServer.c repoCommands.c fsDisk.c $(STORAGE) $(CERTDIR)/certificates.c
+HEADERS := repoCommands.h repoStorage.h fsDisk.h $(CERTDIR)/certificates.h
 SERVER := $(BUILDDIR)/repoServer
 
 .PHONY: all test clean

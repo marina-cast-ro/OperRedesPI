@@ -101,6 +101,16 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
         }
 
         blockIdx = (int)inode.directBlocks[0];
+        uint8_t dataBuffer[FS_BLOCK_SIZE];
+        if (fsReadBlock((uint32_t)blockIdx, dataBuffer) != 0) {
+            return STORAGE_NOT_FOUND;
+        }
+
+        if (strcmp((char *)dataBuffer, roa) == 0) {
+            printf("[FS] ROA sin cambios: IP %s\n", ip);
+            return STORAGE_OK;
+        }
+
         
     // Caso 2: Registro nuevo
     } else {
@@ -122,7 +132,35 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
             return STORAGE_NOT_FOUND;
         }
 
-        if (fsAddDirEntry(ip, (uint32_t)inodeIdx) != 0) {
+        uint8_t buffer[FS_BLOCK_SIZE];
+        if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+            return STORAGE_NOT_FOUND;
+        }
+        buffer[inodeIdx] = 1;
+
+        if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+            return STORAGE_NOT_FOUND;
+        }
+
+        if (fsAddDirEntry(ip, (uint16_t)inodeIdx) != 0) {
+            if (fsReadBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
+                return STORAGE_NOT_FOUND;
+            }
+
+            blockBuffer[blockIdx] = 0;
+
+            if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
+                return STORAGE_NOT_FOUND;
+            }
+
+            if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+                return STORAGE_NOT_FOUND;
+            }
+            buffer[inodeIdx] = 0;
+
+            if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+                return STORAGE_NOT_FOUND;
+            }
             return STORAGE_FULL;
         }
     }
@@ -184,15 +222,23 @@ int storageDelete(const char *ip) {
     }
 
     // Liberar el bloque de datos en el bitmap
-    int blockIndex = inode.directBlocks[0];
+    uint32_t blockIndex = inode.directBlocks[0];
 
     uint8_t buffer[FS_BLOCK_SIZE];
+
     if (fsReadBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
         return STORAGE_NOT_FOUND;
     }
     buffer[blockIndex] = 0;
-
     if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+
+    if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+    buffer[entry.inodeIndex] = 0;
+    if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
         return STORAGE_NOT_FOUND;
     }
 
@@ -203,7 +249,7 @@ int storageDelete(const char *ip) {
     }
 
     // Remover del directorio
-    if (fsRemoveDirEntry(entryIndex) != 0) {
+    if (fsRemoveDirEntry(ip) != 0) {
         return STORAGE_NOT_FOUND;
     }
 

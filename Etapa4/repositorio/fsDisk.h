@@ -62,7 +62,7 @@ typedef struct __attribute__((packed)) {
     char owner[64];                 // Nombre del propietario del archivo
     uint32_t directBlocks[4];      // 4 punteros directos exigidos por el diseño
     uint32_t indirectBlock;        // 1 puntero indirecto simple exigido
-    uint8_t  padding[16];           // Completa 128 bytes exactos
+    uint8_t  padding[13];           // Completa 128 bytes exactos
 
 } Inode;
 
