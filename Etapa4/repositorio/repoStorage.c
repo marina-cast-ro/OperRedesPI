@@ -220,3 +220,41 @@ int storageDelete(const char *ip) {
     printf("[FS] Eliminado ROA: IP %s (Inodo %u liberado)\n", ip, entry.inodeIndex);
     return STORAGE_OK;
 } 
+
+// --- Copia todos los ROAs en el arreglo ---
+// Retorna cuántos copió
+size_t storageList(char roas[][ROA_MAX_SIZE], size_t maxRoas) {
+    if (roas == NULL || maxRoas == 0) {
+        return 0;
+    }
+
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+        return 0;
+    }
+
+    DirEntry *entries = (DirEntry *)buffer;
+
+    size_t count = 0;
+
+    for (int i = 0; i < 16 && count < maxRoas; i++) {
+        if(entries[i].isUsed == 1) {
+            Inode inode;
+            if (fsReadInode(entries[i].inodeIndex, &inode) != 0) {
+                continue;
+            }
+
+            if (inode.isUsed == 1) {
+                uint8_t dataBuffer[FS_BLOCK_SIZE];
+                if (fsReadBlock(inode.directBlocks[0], dataBuffer) == 0) {
+                    snprintf(roas[count], ROA_MAX_SIZE, "%s", (char *)dataBuffer);
+                    count++;
+                }
+            }
+
+        }
+    }
+
+    printf("[FS] Listados %zu ROAs en el sistema\n", count);
+    return count;
+}
