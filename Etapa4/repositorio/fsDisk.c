@@ -190,3 +190,96 @@ int fsFindFreeBlock(void) {
 
     return -1; // VALOR DE ERROR: No se ha encontrado bloque disponible
 }
+
+// --- Busca una IP en las entradas del directorio raiz (bloque 11) para obtener su inodo asociado ---
+// Retorna 0 si existe o -1 si no se encuentra
+int fsFindDirEntry(const char *ip, DirEntry *entryOut, uint32_t *entryIndexOut) {
+    if(ip == NULL) {
+        return -1; // VALOR DE ERROR
+    }
+
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+        return -1; // VALOR DE ERROR
+    }
+
+    DirEntry *entries = (DirEntry *)buffer;
+
+    for(size_t i = 0; i < 16; i++) {
+        if(entries[i].isUsed == 1 && 
+            strncmp(entries[i].ip, ip, sizeof(entries[i].ip)) == 0) {
+                if (entryOut != NULL) {
+                    *entryOut = entries[i];
+                }
+                if (entryIndexOut != NULL) {
+                    *entryIndexOut = (uint32_t)i;
+                }
+
+                return 0;
+        }
+    }
+
+    return -1; // NO ENCONTRADA
+}
+
+// --- Busca una casilla libre en el directorio raiz (bloque 11) para añadir una nueva entrada ---
+int fsAddDirEntry(const char *ip, uint16_t inodeIdx) {
+    if (ip == NULL || inodeIdx >= FS_INODES) {
+        return -1; // VALOR DE ERROR
+    }
+
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+        return -1; // VALOR DE ERROR
+    }
+
+    DirEntry *entries = (DirEntry *)buffer;
+
+    for(size_t i = 0; i < 16; i++) {
+        if(entries[i].isUsed == 0) {
+            memset(&entries[i], 0, sizeof(DirEntry));
+            
+            entries[i].isUsed = 1;
+            entries[i].inodeIndex = inodeIdx;
+            strncpy(entries[i].ip, ip, sizeof(entries[i].ip) - 1);
+            entries[i].ip[sizeof(entries[i].ip) - 1] = '\0'; // Asegurar terminador nulo
+
+            if (fsWriteBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+                return -1; // Falló la escritura física
+            }
+
+            return 0;
+        }
+    }
+
+    return -1; // DIRECTORIO LLENO, NO CABEN MAS ARCHIVOS
+}
+
+// --- Borrar una entrada de directorio ---
+int fsRemoveDirEntry(const char *ip) {
+    if (ip == NULL) {
+        return -1; // VALOR DE ERROR
+    }
+
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+        return -1; // VALOR DE ERROR
+    }
+
+    DirEntry *entries = (DirEntry *)buffer;
+
+    for(size_t i = 0; i < 16; i++) {
+        if(entries[i].isUsed == 1 && 
+            strncmp(entries[i].ip, ip, sizeof(entries[i].ip)) == 0) {
+            memset(&entries[i], 0, sizeof(DirEntry));
+
+            if (fsWriteBlock(FS_DATA_BLOCKS_START, buffer) != 0) {
+                return -1; // Falló la escritura física
+            }
+
+            return 0;
+        }
+    }
+
+    return -1; // La IP no estaba registrada en el directorio
+}

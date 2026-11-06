@@ -100,4 +100,14 @@ int fsFindFreeInode(void);
 // Buscar un bloque de datos libre
 int fsFindFreeBlock(void);
 
+// Buscar una IP en las entradas del directorio raiz (bloque 11) para obtener su inodo asociado
+// Retorna 0 si existe o -1 si no se encuentra
+int fsFindDirEntry(const char *ip, DirEntry *entryOut, uint32_t *entryIndexOut);
+
+// Buscar una casilla libre en el directorio raiz (bloque 11) para añadir una nueva entrada
+int fsAddDirEntry(const char *ip, uint16_t inodeIdx);
+
+// Borrar una entrada de directorio
+int fsRemoveDirEntry(const char *ip);
+
 #endif
