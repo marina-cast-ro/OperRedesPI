@@ -56,13 +56,13 @@ En otra terminal, ejecuten el script interactivo:
 ```
 1. Escriban `1` y presionen `Enter` (*Publicar ROA al Repositorio*).
 2. Ingresen la **IP del Repositorio** (la IP de la Compu 1, ej. `172.16.20.10`).
-3. Para todo lo demás (*Puerto, Emisor 17, Isla 65003, Llaves*), **solo presionen `Enter`** para usar los valores por defecto automáticos.
+3. Para todo lo demás (*Puerto 9000, Emisor 201, Isla 2, Llaves*), **solo presionen `Enter`** para usar los valores por defecto automáticos.
 
 * **Salida esperada de éxito:**
   ```text
   [1] Conectando a 172.16.20.10:9000...
   [2] Respuesta del repositorio: HELLO_OK|OWNER|<nonce>
-  [3] ROA firmado: ROA|172.16.20.10|65003|17|...|<firma_base64>
+  [3] ROA firmado: ROA|172.16.20.10|2|201|...|<firma_base64>
   [4] Comando PUT enviado al repositorio.
   [5] Resultado: PUT_OK
   ```

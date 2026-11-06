@@ -284,13 +284,14 @@ size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destino
     return count;
 }
 
-// Convierte las rutas en lineas ANNOUNCE|destino|costo
+// Convierte las rutas al formato estandar acordado: ANNOUNCE|<isla>|<dest1>:<cost1>,<dest2>:<cost2>...
 int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, char *buffer_out, size_t max_len) {
     if (!t || !buffer_out || max_len == 0) return -1;
     buffer_out[0] = '\0';
 
     if (muerte) {
-        snprintf(buffer_out, max_len, "ANNOUNCE|%d|-1\n", t->mi_id);
+        // Aviso de muerte: costo -1 para nuestra propia isla
+        snprintf(buffer_out, max_len, "ANNOUNCE|%d|%d:-1\n", t->mi_id, t->mi_id);
         return 0;
     }
 
@@ -299,16 +300,25 @@ int tabla_armar_announce_texto(tabla_enrutamiento_t *t, int vecino, int muerte, 
     size_t n = tabla_armar_vector_para(t, vecino, destinos, costos, MAX_ISLAS);
 
     if (n == 0) {
-        // Keepalive con costo 0
-        snprintf(buffer_out, max_len, "ANNOUNCE|%d|0\n", t->mi_id);
+        // Keepalive propio con costo 0
+        snprintf(buffer_out, max_len, "ANNOUNCE|%d|%d:0\n", t->mi_id, t->mi_id);
         return 0;
     }
 
-    size_t escrito = 0;
+    int r = snprintf(buffer_out, max_len, "ANNOUNCE|%d|", t->mi_id);
+    if (r < 0 || (size_t)r >= max_len) return -1;
+    size_t escrito = (size_t)r;
+
     for (size_t i = 0; i < n; i++) {
-        int r = snprintf(buffer_out + escrito, max_len - escrito, "ANNOUNCE|%d|%d\n", destinos[i], costos[i]);
+        r = snprintf(buffer_out + escrito, max_len - escrito, "%s%d:%d",
+                     (i == 0) ? "" : ",", destinos[i], costos[i]);
         if (r < 0 || (size_t)r >= (max_len - escrito)) break;
-        escrito += r;
+        escrito += (size_t)r;
+    }
+
+    if (escrito < max_len - 1) {
+        buffer_out[escrito++] = '\n';
+        buffer_out[escrito] = '\0';
     }
     return 0;
 }

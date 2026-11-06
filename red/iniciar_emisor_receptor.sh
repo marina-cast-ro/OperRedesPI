@@ -9,10 +9,6 @@ OUTPUT_FILE="$DIR_ROUTER/output.txt"
 
 # 1. Asegurar certificados y llaves disponibles
 mkdir -p "$DIR_BASE/Etapa4/certificados"
-if [ ! -f "$DIR_BASE/Etapa4/certificados/nodo.key" ] && [ -f "$DIR_BASE/Etapa4/validacionROAs/prueba/nodo/nodo-AS65003-17.key" ]; then
-    cp "$DIR_BASE/Etapa4/validacionROAs/prueba/nodo/nodo-AS65003-17.key" "$DIR_BASE/Etapa4/certificados/nodo.key"
-    cp "$DIR_BASE/Etapa4/validacionROAs/prueba/nodo/nodo-AS65003-17.crt" "$DIR_BASE/Etapa4/certificados/nodo.crt"
-fi
 
 # Detectar rutas
 if [ -f "$DIR_BASE/Etapa4/certificados/nodo.key" ]; then
@@ -53,10 +49,10 @@ case $OPCION in
         IP_REPO="${IP_REPO:-172.16.20.10}"
         read -p "Puerto del Repositorio [9000]: " PUERTO_REPO
         PUERTO_REPO="${PUERTO_REPO:-9000}"
-        read -p "Numero de Emisor [17]: " NUM_EMISOR
-        NUM_EMISOR="${NUM_EMISOR:-17}"
-        read -p "Numero de Isla / AS [65003]: " ISLA
-        ISLA="${ISLA:-65003}"
+        read -p "Numero de Emisor [201]: " NUM_EMISOR
+        NUM_EMISOR="${NUM_EMISOR:-201}"
+        read -p "Numero de Isla / AS [2]: " ISLA
+        ISLA="${ISLA:-2}"
         read -p "IP que anuncia tu isla [172.16.20.10]: " IP_ANUNCIO
         IP_ANUNCIO="${IP_ANUNCIO:-172.16.20.10}"
 
@@ -107,7 +103,7 @@ case $OPCION in
         fi
 
         echo "[*] 1/2 Publicando ROA..."
-        "$DIR_HOST/host_emisor" "$IP_REPO" 9000 17 65003 172.16.20.10 "$KEY" "$CRT" 86400
+        "$DIR_HOST/host_emisor" "$IP_REPO" 9000 201 2 172.16.20.10 "$KEY" "$CRT" 86400
 
         echo ""
         echo "[*] 2/2 Monitoreando receptor en '$OUTPUT_FILE'..."

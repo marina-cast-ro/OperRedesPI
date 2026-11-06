@@ -8,6 +8,12 @@
   "tolerancia_silencio_seg": 90,
   "ttl_inicial": 8,
 
+  "repositorio": {
+    "ip": "172.16.20.10",
+    "id": "ENR-2",
+    "truststore": "../certificados/trusted-roots.pem"
+  },
+
   "vecinos": {
     "1": { "equipo": "Pirateados",      "ip": "172.30.12.1", "puerto": 5005, "costo": 2 },
     "4": { "equipo": "4bits",           "ip": "172.30.24.2", "puerto": 5005, "costo": 5 },

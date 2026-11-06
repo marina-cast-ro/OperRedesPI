@@ -132,7 +132,7 @@ class Nodo:
         Devuelve True si es ROA_VALID o ROA_UNKNOWN, y False si es ROA_INVALID."""
         if self.validador_roa is None:
             return True
-        ip = self.ips_islas.get(int(isla))
+        ip = self.ips_islas.get(int(isla)) or f"172.16.{isla}0.10"
         if not ip:
             return True
         if self.validador_roa.evaluar(ip, int(isla)) == ROA_INVALID:
