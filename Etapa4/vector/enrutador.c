@@ -267,11 +267,24 @@ static void *hilo_conexion(void *arg) {
 
             if (strcmp(accion, "ENTREGAR") == 0) {
                 printf("[DATA RECIBIDO] %s\n", nuevo_msg);
-                // Guardar en output.txt como pide el enunciado
+                // PASO 1: Guardar en output.txt del router (como pide el enunciado)
                 FILE *f = fopen("output.txt", "a");
                 if (f) {
                     fprintf(f, "%s\n", nuevo_msg);
                     fclose(f);
+                }
+
+                // PASO 2: Entregar a la compu receptora local de la LAN
+                if (g_ip_local[0]) {
+                    char mensaje_host[2100];
+                    snprintf(mensaje_host, sizeof(mensaje_host), "%s\n", nuevo_msg); // Agregar \n al final
+
+                    // Abre la conexión, envía y cierra, devuelve 0 si no hubo errores 
+                    if (enviar_tcp(g_ip_local, g_puerto_local, mensaje_host) == 0) {
+                        printf("[DATA ENTREGADO] a %s:%d\n", g_ip_local, g_puerto_local);
+                    } else {
+                        fprintf(stderr, "[DATA ERROR] No se pudo entregar a %s:%d\n", g_ip_local, g_puerto_local);
+                    }
                 }
             } else if (strcmp(accion, "REENVIAR") == 0) {
                 strcat(nuevo_msg, "\n");
@@ -322,6 +335,10 @@ static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
         tabla_configurar_vecino(&g_tabla, 4, 5, "172.30.24.2", "4bits");
         tabla_configurar_vecino(&g_tabla, 5, 2, "172.30.25.2", "Pi de Frambuesa");
     }
+
+    // Carga a memoria desde el archivo JSON (config) 
+    // a la dirección IP + Puerto de la computadora receptora local de la LAN
+    cargar_destino_local(ruta_cfg);
 
     // Punto E: arranca el sincronizador con el repositorio (o una tabla ROA vacia)
     iniciar_roas(ruta_cfg, ip_repositorio);
