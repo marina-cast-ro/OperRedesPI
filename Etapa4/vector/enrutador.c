@@ -47,8 +47,8 @@ static void cargar_destino_local(const char *ruta_cfg) {
     fclose(f);
     json[len] = '\0';
  
-    // IP: Búsqueda de "receptor_local": "X.X.X.X"
-    const char *key_pos = strstr(json, "\"receptor_local\"");
+    // IP: Búsqueda de "servidor_local": "X.X.X.X"
+    const char *key_pos = strstr(json, "\"servidor_local\"");
     // Son 16 caracteres para el nombre de la clave + La IP entre los caracteres ':' y '"'
     if (key_pos && (key_pos = strchr(key_pos + 16, ':')) && (key_pos = strchr(key_pos, '"'))) {
         key_pos++;
