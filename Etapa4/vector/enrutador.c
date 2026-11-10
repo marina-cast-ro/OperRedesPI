@@ -26,6 +26,59 @@ static int g_socket_servidor = -1;
 // ruta se descarta).
 static int g_punto_e_activo = 0;
 
+// --------- Entrega final a una compu local específica de la LAN ---------
+// Cuando un DATA llega a esta isla, se guarda en output.txt y se reenvia por TCP a la compu local.
+// La IP de la compu receptora se debe de configurar en el JSON:
+//   "servidor_local": "172.16.20.10", "puerto_local": 5005
+// Si no hay "servidor_local" solo se guarda en output.txt.
+static char g_ip_local[64] = "";                  // IP de la compu local receptora
+static int  g_puerto_local = PUERTO_TCP_DEFECTO;  // Puerto de la compu local receptora
+
+// Lectura de la compu receptora local desde el archivo de configuración JSON
+// El guardado de los datos del receptor se realiza en las 2 variables estáticas de arriba
+static void cargar_destino_local(const char *ruta_cfg) {
+    char json[16384];
+    size_t len = 0;
+
+    // Lectura del archivo completo JSON a memoria
+    FILE *f = fopen(ruta_cfg, "rb");
+    if (!f) return;
+    len = fread(json, 1, sizeof(json) - 1, f);
+    fclose(f);
+    json[len] = '\0';
+ 
+    // IP: Búsqueda de "receptor_local": "X.X.X.X"
+    const char *key_pos = strstr(json, "\"receptor_local\"");
+    // Son 16 caracteres para el nombre de la clave + La IP entre los caracteres ':' y '"'
+    if (key_pos && (key_pos = strchr(key_pos + 16, ':')) && (key_pos = strchr(key_pos, '"'))) {
+        key_pos++;
+        const char *fin = strchr(key_pos, '"');
+        // Copiado de los datos si fueron encontrados
+        if (fin && (size_t)(fin - key_pos) > 0 && (size_t)(fin - key_pos) < sizeof(g_ip_local)) {
+            memcpy(g_ip_local, key_pos, (size_t)(fin - key_pos));
+            g_ip_local[fin - key_pos] = '\0';
+        }
+    }
+
+    // PUERTO: Búsqueda de "puerto_local": "X.X.X.X"
+    key_pos = strstr(json, "\"puerto_local\"");
+    if (key_pos && (key_pos = strchr(key_pos + 14, ':'))) {
+        int p = atoi(key_pos + 1);
+        if (p > 0 && p < 65536) g_puerto_local = p;
+    }
+ 
+    // Validación de IP (que corresponda a ser IPv4)
+    struct in_addr prueba;
+    if (g_ip_local[0] && inet_pton(AF_INET, g_ip_local, &prueba) != 1) {
+        fprintf(stderr, "[LOCAL] servidor_local invalido: '%s'. Solo se guarda en output.txt.\n", g_ip_local);
+        g_ip_local[0] = '\0';
+    }
+
+    // Aviso de confirmación de la compu en donde se recibirán mensajes
+    if (g_ip_local[0]) 
+        fprintf(stderr, "[LOCAL] Entrega final a %s:%d\n", g_ip_local, g_puerto_local);
+}
+
 // Lee el valor de texto de "clave" dentro de la seccion "repositorio" (entre su '{' y su '}')
 static int leer_campo_repositorio(const char *json, const char *clave, char *out, size_t n) {
     const char *sec = strstr(json, "\"repositorio\"");
@@ -189,16 +242,6 @@ static void *hilo_conexion(void *arg) {
                     break;
                 }
             }
-
-            /* SE BORRO ESTO YA QUE PERMITE ANNOUNCE FALSOS, DE VECINOS NO CONFIGURADOS POR NOSOTROS
-            // Si la IP no coincidio directamente, intentar extraer la isla del propio mensaje ANNOUNCE
-            if (id_vecino == 0) {
-                int isla_msg = 0;
-                if (sscanf(buffer, "ANNOUNCE|%d|", &isla_msg) == 1 && isla_msg > 0 && isla_msg < MAX_ISLAS) {
-                    id_vecino = isla_msg;
-                }
-            }
-            **/
 
             // id_vecino DEBE ser algun numero entre 1 a MAX_ISLAS (32)
             if (id_vecino == 0) {
