@@ -1,31 +1,37 @@
 Building configuration...
 
-Current configuration : 2360 bytes
+Current configuration : 2841 bytes
 !
-version 15.0
-no service timestamps log datetime msec
-no service timestamps debug datetime msec
+version 12.2
+no service pad
+no service timestamps debug uptime
+no service timestamps log uptime
 no service password-encryption
 !
 hostname SW-IN-Koopatroopa
 !
 enable secret 5 $1$mERr$5.a6P4JqbNiMX01usIfka/
 !
-!
+no aaa new-model
+system mtu routing 1500
+vtp mode transparent
+ip subnet-zero
 ip dhcp excluded-address 172.16.20.1 172.16.20.99
 ip dhcp excluded-address 172.16.20.200 172.16.20.254
 !
 ip dhcp pool POOL-ISLA2-VLAN20
- network 172.16.20.0 255.255.255.0
- default-router 172.16.20.1
+   network 172.16.20.0 255.255.255.0
+   default-router 172.16.20.1 
+!
 no ip domain-lookup
 !
-vtp mode transparent
 !
 !
-!
+no file verify auto
 spanning-tree mode pvst
 spanning-tree extend system-id
+!
+vlan internal allocation policy ascending
 !
 vlan 20
  name N0
@@ -43,8 +49,8 @@ vlan 125
  name TRANSITO_ISLA2_ISLA5
 !
 interface FastEthernet0/1
- description TRONCAL_HACIA_INTERMEDIARIO
- switchport trunk allowed vlan 20,99,112,124-125
+ description TRONCAL_HACIA_NUCLEO_CENTRAL
+ switchport trunk allowed vlan 99,112,124,125
  switchport mode trunk
 !
 interface FastEthernet0/2
@@ -54,8 +60,8 @@ interface FastEthernet0/2
  spanning-tree portfast
 !
 interface FastEthernet0/3
- description ENRUTADOR_LOCAL
- switchport trunk allowed vlan 20,112,124-125
+ description TRONCAL_HACIA_INTERMEDIARIO_LINUX
+ switchport trunk allowed vlan 20,112,124,125
  switchport mode trunk
 !
 interface FastEthernet0/4
@@ -83,6 +89,7 @@ interface FastEthernet0/10
  description HOST_SECUNDARIO_VLAN20
  switchport access vlan 20
  switchport mode access
+ shutdown
  spanning-tree portfast
 !
 interface FastEthernet0/11
@@ -135,33 +142,34 @@ interface GigabitEthernet0/2
 !
 interface Vlan1
  no ip address
+ no ip route-cache
  shutdown
 !
 interface Vlan20
  description SVI_VLAN20_LOCAL
  ip address 172.16.20.2 255.255.255.0
+ no ip route-cache
 !
 interface Vlan99
  description GESTION_SWITCH
  ip address 172.16.99.2 255.255.255.0
+ no ip route-cache
 !
-banner motd ^C Acceso Restringido - Isla 2 Koopatroopa ^C
+ip http server
 !
+control-plane
 !
+banner motd ^CC Acceso Restringido - Isla 2 Koopatroopa ^C
 !
 line con 0
  password cisco123
  logging synchronous
  login
-!
 line vty 0 4
  password cisco123
  login
 line vty 5 15
  password cisco123
  login
-!
-!
-!
 !
 end
