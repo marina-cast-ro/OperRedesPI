@@ -1,0 +1,151 @@
+Building configuration...
+
+Current configuration : 2429 bytes
+!
+version 12.2
+no service pad
+service timestamps debug uptime
+service timestamps log uptime
+no service password-encryption
+!
+hostname Enrutador-L3
+!
+!
+no aaa new-model
+ip subnet-zero
+no ip domain-lookup
+!
+!
+!
+!
+no file verify auto
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+vlan internal allocation policy ascending
+!
+interface FastEthernet0/1
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 99
+ switchport mode trunk
+!
+interface FastEthernet0/2
+ description ENLACE_HACIA_ISLA2_KOOPA
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 99,112,124,125
+ switchport mode trunk
+!
+interface FastEthernet0/3
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 99
+ switchport mode trunk
+!
+interface FastEthernet0/4
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 99
+ switchport mode trunk
+!
+interface FastEthernet0/5
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 99
+ switchport mode trunk
+!
+interface FastEthernet0/6
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface FastEthernet0/7
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface FastEthernet0/8
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface FastEthernet0/9
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface FastEthernet0/10
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface FastEthernet0/11
+ shutdown
+!
+interface FastEthernet0/12
+ shutdown
+!
+interface FastEthernet0/13
+ shutdown
+!
+interface FastEthernet0/14
+ shutdown
+!
+interface FastEthernet0/15
+ shutdown
+!
+interface FastEthernet0/16
+ shutdown
+!
+interface FastEthernet0/17
+ shutdown
+!
+interface FastEthernet0/18
+ shutdown
+!
+interface FastEthernet0/19
+ shutdown
+!
+interface FastEthernet0/20
+ shutdown
+!
+interface FastEthernet0/21
+ shutdown
+!
+interface FastEthernet0/22
+ shutdown
+!
+interface FastEthernet0/23
+ shutdown
+!
+interface FastEthernet0/24
+ shutdown
+!
+interface GigabitEthernet0/1
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface GigabitEthernet0/2
+ switchport trunk encapsulation dot1q
+ switchport mode access
+ shutdown
+!
+interface Vlan1
+ no ip address
+ no ip route-cache
+ shutdown
+!
+ip classless
+ip http server
+!
+!
+control-plane
+!
+!
+line con 0
+line vty 0 4
+ no login
+line vty 5 15
+ no login
+!
+!
+end
+
+Enrutador-L3#
