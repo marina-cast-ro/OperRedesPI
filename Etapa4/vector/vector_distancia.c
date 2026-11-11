@@ -5,6 +5,24 @@
 #include <string.h>
 #include <ctype.h>
 
+// ---- Matriz de costos en la MMU (byte a byte, con TLB y paginas) ----
+// Direccion virtual = destino*MAX_ISLAS + via, de 0 a 1023. INF=100 cabe en un byte.
+// El llamador debe tener t->candado tomado (translateAddress modifica la TLB incluso al leer).
+static inline uint32_t celda_dir(int destino, int via) {
+    return (uint32_t)destino * MAX_ISLAS + (uint32_t)via;
+}
+static int celda_leer(tabla_enrutamiento_t *t, int destino, int via) {
+    uint8_t x = INF;   // si la MMU falla, se trata como inalcanzable
+    mmuReadByte(&t->mmu, celda_dir(destino, via), &x);
+    return x;
+}
+static void celda_escribir(tabla_enrutamiento_t *t, int destino, int via, int costo) {
+    // Todo costo >= INF ya se trataba como "inalcanzable", asi que topar en INF no cambia el comportamiento
+    // y evita que un costo > 255 de la configuracion se trunque al guardarlo en 1 byte.
+    if (costo > INF) costo = INF;
+    mmuWriteByte(&t->mmu, celda_dir(destino, via), (uint8_t)costo);
+}
+
 // Inicializa la tabla con costos en infinito
 void tabla_iniciar(tabla_enrutamiento_t *t, int mi_id, int puerto) {
     if (!t) return;
@@ -13,11 +31,13 @@ void tabla_iniciar(tabla_enrutamiento_t *t, int mi_id, int puerto) {
     t->puerto_tcp = puerto ? puerto : PUERTO_TCP_DEFECTO;
     pthread_mutex_init(&t->candado, NULL);
 
+    initMMU(&t->mmu);
     for (int d = 0; d < MAX_ISLAS; d++) {
         for (int v = 0; v < MAX_ISLAS; v++) {
-            t->matriz_costos[d][v] = INF;
+            celda_escribir(t, d, v, INF);
         }
     }
+    mmuResetStats(&t->mmu);   // la carga inicial no cuenta: las estadisticas reflejan la operacion
 }
 
 // Destruye el mutex de la tabla
@@ -78,13 +98,13 @@ static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
 }
 
 // Busca el mejor camino (en caso de empate gana el de menor id)
-static int mejor_camino_sin_candado(const tabla_enrutamiento_t *t, int destino, int *costo_out, int *via_out) {
+static int mejor_camino_sin_candado(tabla_enrutamiento_t *t, int destino, int *costo_out, int *via_out) {
     int min_c = INF;
     int mejor_via = 0;
 
     for (int v = 1; v < MAX_ISLAS; v++) {
         if (!t->vecinos[v].configurado) continue;
-        int c = t->matriz_costos[destino][v];
+        int c = celda_leer(t, destino, v);
         if (c < min_c) {
             min_c = c;
             mejor_via = v;
@@ -141,7 +161,7 @@ void tabla_obtener_resumen(tabla_enrutamiento_t *t, ruta_optima_t *resumen_out, 
 }
 
 // Compara si la tabla cambio respecto a una version anterior
-static int resumen_ha_cambiado(const int antes_c[MAX_ISLAS], const int antes_v[MAX_ISLAS], const tabla_enrutamiento_t *t) {
+static int resumen_ha_cambiado(const int antes_c[MAX_ISLAS], const int antes_v[MAX_ISLAS], tabla_enrutamiento_t *t) {
     for (int d = 1; d < MAX_ISLAS; d++) {
         int ahora_c, ahora_v;
         mejor_camino_sin_candado(t, d, &ahora_c, &ahora_v);
@@ -162,7 +182,7 @@ int tabla_vecino_caido(tabla_enrutamiento_t *t, int vecino) {
 
     t->vecinos[vecino].ultimo_oido = 0;
     for (int d = 1; d < MAX_ISLAS; d++) {
-        t->matriz_costos[d][vecino] = INF;
+        celda_escribir(t, d, vecino, INF);
     }
 
     int cambio = resumen_ha_cambiado(antes_c, antes_v, t);
@@ -186,7 +206,7 @@ int tabla_revisar_silencio(tabla_enrutamiento_t *t, int tolerancia, time_t ahora
             }
 
             for (int d = 1; d < MAX_ISLAS; d++) {
-                t->matriz_costos[d][v] = INF;
+                celda_escribir(t, d, v, INF);
             }
             t->vecinos[v].ultimo_oido = 0;
 
@@ -225,10 +245,10 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
 
     // 3. Limpia rutas viejas de este vecino y actualiza enlace directo
     for (int d = 1; d < MAX_ISLAS; d++) {
-        if (d != vecino) t->matriz_costos[d][vecino] = INF;
+        if (d != vecino) celda_escribir(t, d, vecino, INF);
     }
     t->vecinos[vecino].ultimo_oido = ahora;
-    t->matriz_costos[vecino][vecino] = t->vecinos[vecino].costo_enlace;
+    celda_escribir(t, vecino, vecino, t->vecinos[vecino].costo_enlace);
     t->destinos_vistos[vecino] = 1;
 
     // 4. Aplica Bellman-Ford con validacion ROA para cada destino
@@ -245,10 +265,10 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
 
         t->destinos_vistos[d] = 1;
         if (c < 0) {
-            t->matriz_costos[d][vecino] = INF;
+            celda_escribir(t, d, vecino, INF);
         } else {
             int nuevo_costo = t->vecinos[vecino].costo_enlace + c;
-            t->matriz_costos[d][vecino] = (nuevo_costo >= INF) ? INF : nuevo_costo;
+            celda_escribir(t, d, vecino, (nuevo_costo >= INF) ? INF : nuevo_costo);
         }
     }
 
@@ -438,7 +458,15 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    // 4. Reenviar con nuevo TTL
+    // 4. Reenviar con nuevo TTL (bitacora del punto 7: una linea por paquete reenviado)
+    {
+        char hora[32];
+        time_t ahora = time(NULL);
+        struct tm tm_info;
+        localtime_r(&ahora, &tm_info);
+        strftime(hora, sizeof(hora), "%Y-%m-%d %H:%M:%S", &tm_info);
+        printf("[REENVIO %s] origen=%d destino=%d siguiente_salto=%d ttl=%d\n", hora, origen, destino, salto, ttl);
+    }
     strcpy(accion_out, "REENVIAR");
     if (salto_out) *salto_out = salto;
     snprintf(nuevo_msg_out, max_len, "DATA|%d|%d|%d|%s", origen, destino, ttl, datos);
@@ -549,4 +577,13 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
 
     free(buf);
     return 0;
+}
+
+// Imprime las estadisticas de la MMU de esta tabla (punto 4: al terminar)
+void tabla_imprimir_estadisticas_mmu(tabla_enrutamiento_t *t) {
+    if (!t) return;
+    pthread_mutex_lock(&t->candado);
+    mmuImprimirEstadisticas(&t->mmu, t->mi_id);
+    fflush(stdout);
+    pthread_mutex_unlock(&t->candado);
 }

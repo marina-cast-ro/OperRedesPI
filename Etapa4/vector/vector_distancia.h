@@ -5,6 +5,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "../puntoE/roa_tabla.h"
+#include "../mmu/mmu.h"
 
 // Constantes acordadas para la red
 #define MAX_ISLAS            32
@@ -39,8 +40,10 @@ typedef struct {
     char nombres[MAX_ISLAS][32];
     vecino_info_t vecinos[MAX_ISLAS];
     
-    // Matriz de costos: [destino][via_vecino]
-    int matriz_costos[MAX_ISLAS][MAX_ISLAS];
+    // Matriz de costos [destino][via_vecino]: vive en la memoria simulada de la Etapa 2
+    // (1 byte por celda, direccion = destino*MAX_ISLAS + via). Solo se toca con celda_leer/celda_escribir,
+    // siempre con 'candado' tomado (incluso para leer: la TLB se modifica en un Miss).
+    mmu_t mmu;
     int destinos_vistos[MAX_ISLAS];
     
     // Candado para acceso seguro entre hilos
@@ -74,5 +77,8 @@ int  tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *ac
 
 // Mostrar tabla
 void tabla_imprimir(tabla_enrutamiento_t *t);
+
+// Imprime aciertos/fallos de TLB y fallos de pagina de la MMU de esta tabla (punto 4)
+void tabla_imprimir_estadisticas_mmu(tabla_enrutamiento_t *t);
 
 #endif

@@ -387,6 +387,10 @@ static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
         pthread_detach(th);
     }
 
+    // Punto 4: estadisticas de la MMU al terminar. Va antes del join porque el hilo del
+    // temporizador puede tardar hasta INTERVALO_ANUNCIO s en despertar del sleep.
+    tabla_imprimir_estadisticas_mmu(&g_tabla);
+
     pthread_join(th_timer, NULL);
     detener_roas();
     tabla_destruir(&g_tabla);
@@ -488,6 +492,11 @@ static void ejecutar_simulacion(void) {
         if (!cambio) break;
     }
     tabla_imprimir(&nodos[2]);
+
+    printf("\n=== Estadisticas de la MMU de cada nodo ===\n");
+    for (int i = 1; i <= 5; i++) {
+        tabla_imprimir_estadisticas_mmu(&nodos[i]);
+    }
 
     for (int i = 1; i <= 5; i++) {
         tabla_destruir(&nodos[i]);
