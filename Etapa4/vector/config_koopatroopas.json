@@ -3,7 +3,7 @@
   "nombre": "Koopatroopas",
   "puerto_tcp": 5005,
   "red_local": "172.16.20.0/24",
-  "servidor_local": "172.16.20.10",
+  "servidor_local": "172.16.20.101",
   "puerto_local": 5005,
   "intervalo_announce_seg": 30,
   "tolerancia_silencio_seg": 90,

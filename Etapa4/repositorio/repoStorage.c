@@ -3,6 +3,19 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+
+static int setBitmapBit(uint32_t bitmapBlock, uint32_t index, uint8_t value) {
+    if (index >= FS_BLOCK_SIZE) {
+        return -1;
+    }
+    uint8_t buffer[FS_BLOCK_SIZE];
+    if (fsReadBlock(bitmapBlock, buffer) != 0) {
+        return -1;
+    }
+    buffer[index] = value;
+    return fsWriteBlock(bitmapBlock, buffer);
+}
 
 // --- Prepara el disco ---
 // Retorna STORAGE_OK, o -1 si no se pudo 
@@ -82,86 +95,54 @@ int storageGet(const char *ip, char *roa, char *owner) {
 // --- Guarda o reemplaza el ROA de esa IP y sube la versión --- 
 // Retorna STORAGE_OK, STORAGE_FULL o STORAGE_NOT_FOUND
 int storagePut(const char *ip, const char *owner, const char *roa) {
-    if (ip == NULL || roa ==  NULL || owner == NULL) {
+    if (ip == NULL || roa == NULL || owner == NULL) {
         return STORAGE_NOT_FOUND;
     }
 
-    // Buscar en el directorio con la ip
     DirEntry entry;
-    int inodeIdx = -1; 
+    int inodeIdx = -1;
     int blockIdx = -1;
+    int isNew = 0;
+    uint64_t createdAt = (uint64_t)time(NULL);
+    uint64_t now = createdAt;
 
     // Caso 1: Ya existe registro (Actualización)
     if (fsFindDirEntry(ip, &entry, NULL) == 0) {
         inodeIdx = (int)entry.inodeIndex;
 
-        Inode inode;
-        if (fsReadInode((uint32_t)inodeIdx, &inode) != 0) {
+        Inode existingInode;
+        if (fsReadInode((uint32_t)inodeIdx, &existingInode) != 0) {
+            return STORAGE_NOT_FOUND;
+        }
+        if (existingInode.createdAt != 0) {
+            createdAt = existingInode.createdAt;
+        }
+
+        blockIdx = (int)existingInode.directBlocks[0];
+        uint8_t currentData[FS_BLOCK_SIZE];
+        if (fsReadBlock((uint32_t)blockIdx, currentData) != 0) {
             return STORAGE_NOT_FOUND;
         }
 
-        blockIdx = (int)inode.directBlocks[0];
-        uint8_t dataBuffer[FS_BLOCK_SIZE];
-        if (fsReadBlock((uint32_t)blockIdx, dataBuffer) != 0) {
-            return STORAGE_NOT_FOUND;
-        }
-
-        if (strcmp((char *)dataBuffer, roa) == 0) {
+        if (strcmp((char *)currentData, roa) == 0) {
             printf("[FS] ROA sin cambios: IP %s\n", ip);
             return STORAGE_OK;
         }
-
-        
-    // Caso 2: Registro nuevo
     } else {
+        // Caso 2: Registro nuevo
+        isNew = 1;
         inodeIdx = fsFindFreeInode();
         blockIdx = fsFindFreeBlock();
-
-        if(inodeIdx < 0 || blockIdx < 0) {
+        if (inodeIdx < 0 || blockIdx < 0) {
             return STORAGE_FULL;
         }
 
-        uint8_t blockBuffer[FS_BLOCK_SIZE];
-        if (fsReadBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
+        if (setBitmapBit(FS_DATA_BITMAP_BLOCK, (uint32_t)blockIdx, 1) != 0) {
             return STORAGE_NOT_FOUND;
         }
-
-        blockBuffer[blockIdx] = 1;
-
-        if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
+        if (setBitmapBit(FS_INODE_BITMAP_BLOCK, (uint32_t)inodeIdx, 1) != 0) {
+            setBitmapBit(FS_DATA_BITMAP_BLOCK, (uint32_t)blockIdx, 0);
             return STORAGE_NOT_FOUND;
-        }
-
-        uint8_t buffer[FS_BLOCK_SIZE];
-        if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
-            return STORAGE_NOT_FOUND;
-        }
-        buffer[inodeIdx] = 1;
-
-        if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
-            return STORAGE_NOT_FOUND;
-        }
-
-        if (fsAddDirEntry(ip, (uint16_t)inodeIdx) != 0) {
-            if (fsReadBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
-                return STORAGE_NOT_FOUND;
-            }
-
-            blockBuffer[blockIdx] = 0;
-
-            if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, blockBuffer) != 0) {
-                return STORAGE_NOT_FOUND;
-            }
-
-            if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
-                return STORAGE_NOT_FOUND;
-            }
-            buffer[inodeIdx] = 0;
-
-            if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
-                return STORAGE_NOT_FOUND;
-            }
-            return STORAGE_FULL;
         }
     }
 
@@ -171,22 +152,46 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
     strncpy((char *)dataBuffer, roa, FS_BLOCK_SIZE - 1);
 
     if (fsWriteBlock((uint32_t)blockIdx, dataBuffer) != 0) {
+        if (isNew) {
+            setBitmapBit(FS_INODE_BITMAP_BLOCK, (uint32_t)inodeIdx, 0);
+            setBitmapBit(FS_DATA_BITMAP_BLOCK, (uint32_t)blockIdx, 0);
+        }
         return STORAGE_NOT_FOUND;
     }
 
-    // Configurar y guardar el Inodo
+    // Configurar todos los campos y guardar el Inodo
     Inode inode;
     memset(&inode, 0, sizeof(Inode));
+    inode.inodeID = (uint16_t)inodeIdx;
+    inode.type = FS_TYPE_FILE;
     inode.isUsed = 1;
-    inode.directBlocks[0] = (uint32_t)blockIdx;
+    inode.permissions = 0644;
     inode.fileSize = (uint32_t)strlen(roa);
+    inode.createdAt = createdAt;
+    inode.modifiedAt = now;
     strncpy(inode.owner, owner, sizeof(inode.owner) - 1);
+    inode.directBlocks[0] = (uint32_t)blockIdx;
+    inode.indirectBlock = 0;
 
     if (fsWriteInode((uint32_t)inodeIdx, &inode) != 0) {
+        if (isNew) {
+            setBitmapBit(FS_INODE_BITMAP_BLOCK, (uint32_t)inodeIdx, 0);
+            setBitmapBit(FS_DATA_BITMAP_BLOCK, (uint32_t)blockIdx, 0);
+        }
         return STORAGE_NOT_FOUND;
     }
 
-    // Actualizar la version en el Superbloque
+    // Último paso de publicación para archivo nuevo: agregar entrada en directorio
+    if (isNew && fsAddDirEntry(ip, (uint16_t)inodeIdx) != 0) {
+        Inode zeroInode;
+        memset(&zeroInode, 0, sizeof(Inode));
+        fsWriteInode((uint32_t)inodeIdx, &zeroInode);
+        setBitmapBit(FS_INODE_BITMAP_BLOCK, (uint32_t)inodeIdx, 0);
+        setBitmapBit(FS_DATA_BITMAP_BLOCK, (uint32_t)blockIdx, 0);
+        return STORAGE_FULL;
+    }
+
+    // Actualizar versión (y contadores si es archivo nuevo) en el Superbloque
     uint8_t superBlock[FS_BLOCK_SIZE];
     if (fsReadBlock(FS_SUPERBLOCK_BLOCK, superBlock) != 0) {
         return STORAGE_NOT_FOUND;
@@ -194,6 +199,14 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
 
     SuperBlock *sb = (SuperBlock *)superBlock;
     sb->version++;
+    if (isNew) {
+        if (sb->freeBlocks > 0) {
+            sb->freeBlocks--;
+        }
+        if (sb->freeInodes > 0) {
+            sb->freeInodes--;
+        }
+    }
     if (fsWriteBlock(FS_SUPERBLOCK_BLOCK, superBlock) != 0) {
         return STORAGE_NOT_FOUND;
     }
@@ -210,9 +223,7 @@ int storageDelete(const char *ip) {
     }
 
     DirEntry entry;
-    uint32_t entryIndex = 0;
-
-    if (fsFindDirEntry(ip, &entry, &entryIndex) != 0) {
+    if (fsFindDirEntry(ip, &entry, NULL) != 0) {
         return STORAGE_NOT_FOUND;
     }
 
@@ -221,24 +232,10 @@ int storageDelete(const char *ip) {
         return STORAGE_NOT_FOUND;
     }
 
-    // Liberar el bloque de datos en el bitmap
     uint32_t blockIndex = inode.directBlocks[0];
 
-    uint8_t buffer[FS_BLOCK_SIZE];
-
-    if (fsReadBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
-        return STORAGE_NOT_FOUND;
-    }
-    buffer[blockIndex] = 0;
-    if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, buffer) != 0) {
-        return STORAGE_NOT_FOUND;
-    }
-
-    if (fsReadBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
-        return STORAGE_NOT_FOUND;
-    }
-    buffer[entry.inodeIndex] = 0;
-    if (fsWriteBlock(FS_INODE_BITMAP_BLOCK, buffer) != 0) {
+    // Remover primero del directorio raíz antes de liberar inodo y bitmaps
+    if (fsRemoveDirEntry(ip) != 0) {
         return STORAGE_NOT_FOUND;
     }
 
@@ -248,18 +245,24 @@ int storageDelete(const char *ip) {
         return STORAGE_NOT_FOUND;
     }
 
-    // Remover del directorio
-    if (fsRemoveDirEntry(ip) != 0) {
+    // Liberar bloque de datos e inodo en sus bitmaps
+    if (setBitmapBit(FS_DATA_BITMAP_BLOCK, blockIndex, 0) != 0) {
+        return STORAGE_NOT_FOUND;
+    }
+    if (setBitmapBit(FS_INODE_BITMAP_BLOCK, entry.inodeIndex, 0) != 0) {
         return STORAGE_NOT_FOUND;
     }
 
-    // Incrementar versión del Superbloque
-    if (fsReadBlock(FS_SUPERBLOCK_BLOCK, buffer) != 0) {
+    // Actualizar versión y contadores libres del Superbloque
+    uint8_t superBlock[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_SUPERBLOCK_BLOCK, superBlock) != 0) {
         return STORAGE_NOT_FOUND;
     }
-    SuperBlock *sb = (SuperBlock *)buffer;
+    SuperBlock *sb = (SuperBlock *)superBlock;
     sb->version++;
-    if (fsWriteBlock(FS_SUPERBLOCK_BLOCK, buffer) != 0) {
+    sb->freeBlocks++;
+    sb->freeInodes++;
+    if (fsWriteBlock(FS_SUPERBLOCK_BLOCK, superBlock) != 0) {
         return STORAGE_NOT_FOUND;
     }
 

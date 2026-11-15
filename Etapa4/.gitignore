@@ -8,3 +8,4 @@ puntoE/libpuntoE.so
 vector/enrutador
 host/host_emisor
 validacionROAs/roa_test
+/.contexto_auditoria

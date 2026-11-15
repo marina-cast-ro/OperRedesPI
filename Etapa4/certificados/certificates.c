@@ -190,14 +190,53 @@ int getCommonName(X509 *cert, char *cn, size_t cnSize) {
     return 0;
 }
 
+int normalizar_isla(int asn) {
+    if (asn >= 65001 && asn <= 65031) {
+        return asn - 65000;
+    }
+    return asn;
+}
+
+static int parsePositiveDigits(const char *start, const char *end, int *out) {
+    if (start == NULL || start >= end) {
+        return -1;
+    }
+    long value = 0;
+    for (const char *p = start; p < end; p++) {
+        if (*p < '0' || *p > '9') {
+            return -1;
+        }
+        long digit = (long)(*p - '0');
+        if (value > (2147483647L - digit) / 10L) {
+            return -1;
+        }
+        value = value * 10L + digit;
+    }
+    *out = (int)value;
+    return 0;
+}
+
 int cnMatches(X509 *cert, int island, int emitterNum) {
-    char expected[64];
     char cn[64];
-    snprintf(expected, sizeof expected, "AS%d-%d", island, emitterNum);
     if (getCommonName(cert, cn, sizeof cn) != 0) {
         return 0;
     }
-    return strcmp(cn, expected) == 0;
+    if (strncmp(cn, "AS", 2) != 0) {
+        return 0;
+    }
+    const char *dash = strchr(cn + 2, '-');
+    if (dash == NULL) {
+        return 0;
+    }
+    int cnIsland = 0;
+    int cnEmitter = 0;
+    if (parsePositiveDigits(cn + 2, dash, &cnIsland) != 0) {
+        return 0;
+    }
+    if (parsePositiveDigits(dash + 1, cn + strlen(cn), &cnEmitter) != 0) {
+        return 0;
+    }
+    return normalizar_isla(cnIsland) == normalizar_isla(island) && cnEmitter == emitterNum;
 }
 
 time_t getNotAfter(X509 *cert) {

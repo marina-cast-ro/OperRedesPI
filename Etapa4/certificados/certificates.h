@@ -44,7 +44,10 @@ int validateNodeCert(X509_STORE *store, X509 *cert, char *reason, size_t reasonS
 // Retorna 0 si lo encontró, -1 si no tiene CN o no cabe en cn
 int getCommonName(X509 *cert, char *cn, size_t cnSize);
 
-// Revisa que el CN sea exactamente AS<island>-<emitterNum>, el paso 4 de la validación del ROA (punto B).
+// Normaliza un identificador de isla/ASN (65001..65031 -> 1..31; otros se conservan igual).
+int normalizar_isla(int asn);
+
+// Revisa que el CN sea AS<island>-<emitterNum> (normalizando 65001..65031 <-> 1..31).
 // Retorna 1 si coincide, 0 si no
 int cnMatches(X509 *cert, int island, int emitterNum);
 

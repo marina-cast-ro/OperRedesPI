@@ -53,13 +53,34 @@ static void reply(char *response, size_t responseSize, const char *text) {
     snprintf(response, responseSize, "%s\n", text);
 }
 
-// Separa el texto por '|'. Retorna cuántos campos encontró, o maxFields + 1 si hay de más
+// Busca el siguiente separador ('|' o opcionalmente ' ')
+static char *nextSeparator(char *text, int allowSpace) {
+    char *pipe = strchr(text, '|');
+    if (!allowSpace) {
+        return pipe;
+    }
+    char *space = strchr(text, ' ');
+    if (pipe == NULL) {
+        return space;
+    }
+    if (space == NULL) {
+        return pipe;
+    }
+    return space < pipe ? space : pipe;
+}
+
+// Separa el texto por '|', tolerando espacio ' ' o '|' tras el primer token (y tras ROA dentro de PUT).
+// Retorna cuántos campos encontró, o maxFields + 1 si hay de más
 static int splitFields(char *text, char *fields[], int maxFields) {
     int count = 0;
     char *cursor = text;
     while (count < maxFields) {
-        fields[count++] = cursor;
-        cursor = strchr(cursor, '|');
+        fields[count] = cursor;
+        int allowSpace = (count == 0)
+            || (count == 1 && strcmp(fields[0], "PUT") == 0
+                && strncmp(cursor, "ROA", 3) == 0 && (cursor[3] == ' ' || cursor[3] == '|'));
+        count++;
+        cursor = nextSeparator(cursor, allowSpace);
         if (cursor == NULL) {
             return count;
         }
@@ -197,30 +218,84 @@ static void handleHello(Session *session, char *fields[], int count, char *respo
     pthread_rwlock_unlock(&trustLock);
     if (!trusted) {
         printf("Certificado rechazado: %s\n", reason);
+        X509_free(session->cert);
+        session->cert = NULL;
         reply(response, responseSize, "ERR_PERMISO");
         return;
     }
 
-    // El CN tiene que ser de ese emisor: AS<ISLA>-<NUM_EMISOR>
+    // El CN tiene que ser de ese emisor: AS<ISLA>-<NUM_EMISOR> (con normalización 65001..65031 <-> 1..31)
+    char rawCn[OWNER_MAX_SIZE];
+    int cnIsland = 0;
     long cnNum = 0;
     const char *dash = NULL;
-    if (getCommonName(session->cert, session->owner, sizeof session->owner) == 0) {
-        dash = strrchr(session->owner, '-');
+    if (getCommonName(session->cert, rawCn, sizeof rawCn) == 0) {
+        dash = strrchr(rawCn, '-');
     }
-    if (dash == NULL || strncmp(session->owner, "AS", 2) != 0
-        || parseNumber(dash + 1, &cnNum) != 0 || cnNum != session->emitterNum) {
+    int cnValid = 0;
+    if (dash != NULL && strncmp(rawCn, "AS", 2) == 0
+        && parseNumber(dash + 1, &cnNum) == 0 && cnNum == session->emitterNum) {
+        size_t islandLen = (size_t)(dash - (rawCn + 2));
+        if (islandLen > 0 && islandLen < sizeof rawCn) {
+            char islandText[OWNER_MAX_SIZE];
+            memcpy(islandText, rawCn + 2, islandLen);
+            islandText[islandLen] = '\0';
+            if (parseInt(islandText, &cnIsland) == 0) {
+                cnValid = 1;
+            }
+        }
+    }
+    if (!cnValid) {
+        X509_free(session->cert);
+        session->cert = NULL;
         reply(response, responseSize, "ERR_PERMISO");
         return;
     }
+    snprintf(session->owner, sizeof session->owner, "AS%d-%d", normalizar_isla(cnIsland), session->emitterNum);
 
     unsigned char randomBytes[(NONCE_SIZE - 1) / 2];
     if (RAND_bytes(randomBytes, sizeof randomBytes) != 1) {
+        X509_free(session->cert);
+        session->cert = NULL;
         reply(response, responseSize, "ERR_PERMISO");
         return;
     }
     for (size_t i = 0; i < sizeof randomBytes; i++) {
         snprintf(&session->nonce[i * 2], 3, "%02x", randomBytes[i]);
     }
+
+    char *certBase64 = certToBase64(session->cert);
+    if (certBase64 == NULL) {
+        X509_free(session->cert);
+        session->cert = NULL;
+        reply(response, responseSize, "ERR_LLENO");
+        return;
+    }
+
+    pthread_rwlock_wrlock(&storageLock);
+    KnownCert *known = certSlotFor(session->emitterNum);
+    if (known == NULL) {
+        pthread_rwlock_unlock(&storageLock);
+        free(certBase64);
+        X509_free(session->cert);
+        session->cert = NULL;
+        reply(response, responseSize, "ERR_LLENO");
+        return;
+    }
+    if (known->used && strcmp(known->owner, session->owner) != 0) {
+        pthread_rwlock_unlock(&storageLock);
+        free(certBase64);
+        X509_free(session->cert);
+        session->cert = NULL;
+        reply(response, responseSize, "ERR_PERMISO");
+        return;
+    }
+    free(known->base64);
+    known->used = 1;
+    known->emitterNum = session->emitterNum;
+    snprintf(known->owner, sizeof known->owner, "%s", session->owner);
+    known->base64 = certBase64;
+    pthread_rwlock_unlock(&storageLock);
 
     session->isOwner = 1;
     session->greeted = 1;
@@ -270,6 +345,9 @@ static void handleGet(const char *ip, char *response, size_t responseSize) {
 }
 
 static void handleCert(const char *numText, char *response, size_t responseSize) {
+    while (*numText == ' ') {
+        numText++;
+    }
     int emitterNum = 0;
     if (parseInt(numText, &emitterNum) != 0) {
         reply(response, responseSize, "ERR_FORMATO");
@@ -284,10 +362,18 @@ static void handleCert(const char *numText, char *response, size_t responseSize)
     pthread_rwlock_unlock(&storageLock);
 }
 
-// PUT|<roa>|<firma_b64>, con la firma sobre PUT|<roa>|<nonce>
+// PUT|<roa>|<firma_b64> (o PUT <roa>|<firma_b64>), con la firma sobre PUT|<roa>|<nonce>
 static void handlePut(Session *session, const char *line, char *response, size_t responseSize) {
-    const char *roaStart = line + strlen("PUT|");
-    const char *lastPipe = strrchr(line, '|');
+    if (strncmp(line, "PUT", 3) != 0 || (line[3] != '|' && line[3] != ' ')) {
+        reply(response, responseSize, "ERR_FORMATO");
+        return;
+    }
+    const char *roaStart = line + 4;
+    const char *lastPipe = strrchr(roaStart, '|');
+    if (lastPipe == NULL || lastPipe <= roaStart) {
+        reply(response, responseSize, "ERR_FORMATO");
+        return;
+    }
     size_t roaLen = (size_t)(lastPipe - roaStart);
     if (roaLen >= ROA_MAX_SIZE) {
         reply(response, responseSize, "ERR_FORMATO");
@@ -360,8 +446,11 @@ static void handlePut(Session *session, const char *line, char *response, size_t
     free(certBase64);
 }
 
-// DELETE|<ip>|<firma_b64>, con la firma sobre DELETE|<ip>|<nonce>
+// DELETE|<ip>|<firma_b64> (o DELETE <ip>|<firma_b64>), con la firma sobre DELETE|<ip>|<nonce>
 static void handleDelete(Session *session, const char *ip, const char *signature, char *response, size_t responseSize) {
+    while (*ip == ' ') {
+        ip++;
+    }
     if (!isValidIp(ip)) {
         reply(response, responseSize, "ERR_FORMATO");
         return;

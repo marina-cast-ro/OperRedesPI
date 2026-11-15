@@ -33,8 +33,6 @@ int diskReadSector(uint32_t lba, void *buffer) {
 }
 
 int diskWriteSector(uint32_t lba, const void *buffer) {
-    //fprintf(stderr, "[DISK DEBUG] write sector LBA=%u\n", lba);
-    fflush(stderr);
     // Validacion de existencia de buffer y limite de lba
     if (buffer == NULL || lba >= DISK_TOTAL_SECTORS) {
         return -1; // VALOR DE ERROR
@@ -94,14 +92,24 @@ int fsFormat(void) {
     superBlock.version = 0;
     superBlock.totalBlocks = FS_TOTAL_BLOCKS;
     superBlock.inodeCount  = FS_INODES;
-    superBlock.freeBlocks = FS_TOTAL_BLOCKS - FS_DATA_BLOCKS_START; // 64 - 11 = 53
+    superBlock.freeBlocks = FS_TOTAL_BLOCKS - (FS_DATA_BLOCKS_START + 1); // 64 - 12 = 52 (bloque 11 es dir raiz)
     superBlock.freeInodes = FS_INODES;
 
     uint8_t blockBuffer[FS_BLOCK_SIZE];
     memset(blockBuffer, 0, FS_BLOCK_SIZE);
     memcpy(blockBuffer, &superBlock, sizeof(SuperBlock));
 
-    if (fsWriteBlock(0, blockBuffer) != 0) {
+    if (fsWriteBlock(FS_SUPERBLOCK_BLOCK, blockBuffer) != 0) {
+        return -1;
+    }
+
+    // Marcar bloques del sistema (0..10) y directorio raiz (11) en el bitmap de datos
+    uint8_t dataBitmap[FS_BLOCK_SIZE];
+    memset(dataBitmap, 0, FS_BLOCK_SIZE);
+    for (uint32_t b = 0; b <= FS_DATA_BLOCKS_START; b++) {
+        dataBitmap[b] = 1;
+    }
+    if (fsWriteBlock(FS_DATA_BITMAP_BLOCK, dataBitmap) != 0) {
         return -1;
     }
 
@@ -163,13 +171,18 @@ int fsWriteInode(uint32_t inodeIdx, const Inode *inodeIn) {
 
 // --- Buscar un inodo libre ---
 int fsFindFreeInode(void) {
-    for(uint32_t i = 0; i < FS_INODES; i++) {
+    uint8_t bitmap[FS_BLOCK_SIZE];
+    if (fsReadBlock(FS_INODE_BITMAP_BLOCK, bitmap) != 0) {
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < FS_INODES; i++) {
+        if (bitmap[i] != 0) {
+            continue;
+        }
         Inode inode;
-        
-        if(fsReadInode(i, &inode) == 0) {
-            if (inode.isUsed == 0) {
-                return (int)i; // Se ha encontrado un espacio disponible 
-            }
+        if (fsReadInode(i, &inode) == 0 && inode.isUsed == 0) {
+            return (int)i; // Se ha encontrado un espacio disponible
         }
     }
 

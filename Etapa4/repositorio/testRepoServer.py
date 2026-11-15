@@ -196,6 +196,7 @@ def run_protocol_tests(node, other, fake, wrong_num):
     fields = hello.split("|")
     check("Certificado válido recibe nonce", (fields[0], fields[1], len(fields[2])), ("HELLO_OK", "OWNER", 32))
     connection.close()
+    check("CERT responde tras HELLO antes de cualquier PUT", router(f"CERT|{node.num}"), f"OK|{node.cert_b64}")
     second = owner_hello(node)
     check("El nonce cambia en cada conexión", second[1] != hello, True)
     second[0].close()
@@ -252,6 +253,12 @@ def run_protocol_tests(node, other, fake, wrong_num):
     check("El ROA ya no está", router(f"GET|{ip}"), "ERR_NO_EXISTE")
     check("Se puede volver a publicar", put(node, first), "OK|4")
     check("Se borra para seguir", delete(node, ip), "OK|5")
+
+    alt_roa = node.roa("10.2.0.8", island=2)
+    check("ASN 65002 <-> 2 normaliza al publicar ROA", put(node, alt_roa).startswith("OK|"), True)
+    check("GET con espacio recupera el ROA normalizado", router("GET 10.2.0.8"), f"OK|{alt_roa}")
+    check("CERT con espacio recupera el certificado", router(f"CERT {node.num}"), f"OK|{node.cert_b64}")
+    check("Se borra el ROA de prueba normalizado", delete(node, "10.2.0.8").startswith("OK|"), True)
 
 
 def run_full_disk_test(node):
