@@ -24,6 +24,14 @@ static void poner_err(char *err, size_t n, const char *msg) {
     if (err && n) snprintf(err, n, "%s", msg);
 }
 
+static void trim_derecha(char *s) {
+    if (!s) return;
+    size_t l = strlen(s);
+    while (l > 0 && (s[l - 1] == ' ' || s[l - 1] == '\t' || s[l - 1] == '\r')) {
+        s[--l] = '\0';
+    }
+}
+
 static long ms_ahora(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -142,7 +150,10 @@ static repo_estado_t abrir(const repo_cfg_t *cfg, sesion_t *s, char *err, size_t
     if (!resp) {
         close(s->fd); poner_err(err, errlen, "sin respuesta al HELLO"); return REPO_ERR_RED;
     }
-    int ok = strcmp(resp, "HELLO_OK|ENRUTADOR|-") == 0;
+    trim_derecha(resp);
+    int ok = (strncmp(resp, "HELLO_OK|", 9) == 0 || strncmp(resp, "HELLO_OK ", 9) == 0)
+             && strncmp(resp + 9, "ENRUTADOR", 9) == 0
+             && (resp[18] == '\0' || ((resp[18] == '|' || resp[18] == ' ') && strcmp(resp + 19, "-") == 0));
     if (!ok) poner_err(err, errlen, strncmp(resp, "ERR_", 4) == 0 ? resp : "respuesta inesperada al HELLO");
     free(resp);
     if (!ok) { close(s->fd); return REPO_ERR_PROTO; }    /* HELLO rechazado: se aborta */
@@ -175,9 +186,19 @@ repo_estado_t repo_list(const repo_cfg_t *cfg, long *version, char ***lineas, si
         est = REPO_ERR_PROTO;
         goto fin;
     }
-    long ver, cnt;
-    char extra;
-    if (sscanf(cab, "OK|%ld|%ld%c", &ver, &cnt, &extra) != 2 || cnt < 0 || cnt > 100000) {
+    trim_derecha(cab);
+    long ver = 0, cnt = 0;
+    char extra = '\0';
+    int cab_ok = 0;
+    if (strncmp(cab, "OK|", 3) == 0 || strncmp(cab, "OK ", 3) == 0) {
+        const char *p_cab = cab + 3;
+        while (*p_cab == ' ') p_cab++;
+        if (sscanf(p_cab, "%ld|%ld%c", &ver, &cnt, &extra) == 2
+            || sscanf(p_cab, "%ld %ld%c", &ver, &cnt, &extra) == 2) {
+            cab_ok = 1;
+        }
+    }
+    if (!cab_ok || cnt < 0 || cnt > 100000) {
         poner_err(err, errlen, "cabecera de LIST mal formada");
         est = REPO_ERR_PROTO;
         goto fin;
@@ -219,12 +240,22 @@ repo_estado_t repo_cert(const repo_cfg_t *cfg, long num_emisor, char **cert_b64,
     if (enviar_linea(s, cmd) < 0 || !(resp = leer_linea(s))) {
         poner_err(err, errlen, "sin respuesta al CERT");
         est = REPO_ERR_RED;
-    } else if (strncmp(resp, "OK|", 3) == 0 && resp[3] != '\0') {
-        *cert_b64 = strdup(resp + 3);
-        est = *cert_b64 ? REPO_OK : REPO_ERR_RED;
     } else {
-        poner_err(err, errlen, strncmp(resp, "ERR_", 4) == 0 ? resp : "respuesta inesperada al CERT");
-        est = REPO_ERR_PROTO;
+        trim_derecha(resp);
+        if (strncmp(resp, "OK|", 3) == 0 || strncmp(resp, "OK ", 3) == 0) {
+            const char *p_cert = resp + 3;
+            while (*p_cert == ' ') p_cert++;
+            if (*p_cert != '\0') {
+                *cert_b64 = strdup(p_cert);
+                est = *cert_b64 ? REPO_OK : REPO_ERR_RED;
+            } else {
+                poner_err(err, errlen, "respuesta inesperada al CERT");
+                est = REPO_ERR_PROTO;
+            }
+        } else {
+            poner_err(err, errlen, strncmp(resp, "ERR_", 4) == 0 ? resp : "respuesta inesperada al CERT");
+            est = REPO_ERR_PROTO;
+        }
     }
     free(resp);
     close(s->fd);

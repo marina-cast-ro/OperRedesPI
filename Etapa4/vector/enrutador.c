@@ -220,7 +220,10 @@ static void *hilo_conexion(void *arg) {
 
     if (leidos > 0) {
         buffer[leidos] = '\0';
-        if (strncmp(buffer, "ANNOUNCE", 8) == 0) {
+        const char *msg = buffer;
+        while (*msg == ' ' || *msg == '\t') msg++;
+
+        if (strncmp(msg, "ANNOUNCE", 8) == 0) {
             // Identificar vecino por su IP
             struct sockaddr_in peer;
             socklen_t peer_len = sizeof(peer);
@@ -252,18 +255,18 @@ static void *hilo_conexion(void *arg) {
 
             int destinos[MAX_ISLAS];
             int costos[MAX_ISLAS];
-            size_t n = tabla_parsear_announce_texto(buffer, destinos, costos, MAX_ISLAS);
+            size_t n = tabla_parsear_announce_texto(msg, destinos, costos, MAX_ISLAS);
 
             if (id_vecino > 0) {
                 if (tabla_recibir_vector(&g_tabla, id_vecino, destinos, costos, n, time(NULL))) {
                     tabla_imprimir(&g_tabla);
                 }
             }
-        } else if (strncmp(buffer, "DATA", 4) == 0) {
+        } else if (strncmp(msg, "DATA", 4) == 0) {
             char accion[32], nuevo_msg[2048];
             int siguiente_salto = 0;
 
-            tabla_procesar_data(&g_tabla, buffer, accion, &siguiente_salto, nuevo_msg, sizeof(nuevo_msg));
+            tabla_procesar_data(&g_tabla, msg, accion, &siguiente_salto, nuevo_msg, sizeof(nuevo_msg));
 
             if (strcmp(accion, "ENTREGAR") == 0) {
                 printf("[DATA RECIBIDO] %s\n", nuevo_msg);
@@ -290,7 +293,12 @@ static void *hilo_conexion(void *arg) {
                 strcat(nuevo_msg, "\n");
                 enviar_tcp(g_tabla.ips[siguiente_salto], g_tabla.puerto_tcp, nuevo_msg);
             } else {
-                printf("[DATA DESCARTADO] %s\n", nuevo_msg);
+                char hora[16];
+                time_t ahora = time(NULL);
+                struct tm tm_info;
+                localtime_r(&ahora, &tm_info);
+                strftime(hora, sizeof(hora), "%H:%M:%S", &tm_info);
+                printf("[%s] [DATA DESCARTADO] %s\n", hora, nuevo_msg);
             }
         }
     }
@@ -302,6 +310,9 @@ static void *hilo_conexion(void *arg) {
 // Hilo para enviar anuncios cada 30s y verificar silencios de 90s
 static void *hilo_temporizador(void *arg) {
     (void)arg;
+    if (g_ejecutando) {
+        anunciar_a_vecinos(&g_tabla, 0);
+    }
     while (g_ejecutando) {
         sleep(INTERVALO_ANUNCIO);
         if (!g_ejecutando) break;

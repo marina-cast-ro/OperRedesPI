@@ -5,6 +5,22 @@
 
 /* ---------- Utilidades para armar tablas (ya hechas) ---------- */
 
+static int normalizar_isla(int asn) {
+    return (asn >= 65001 && asn <= 65031) ? (asn - 65000) : asn;
+}
+
+static int ip_coincide_roa(const char *ip_roa, const char *ip_consulta) {
+    if (strcmp(ip_roa, ip_consulta) == 0) return 1;
+    if (strncmp(ip_consulta, "172.16.", 7) == 0) {
+        const char *dot3 = strchr(ip_consulta + 7, '.');
+        if (dot3) {
+            size_t pref_len = (size_t)(dot3 - ip_consulta) + 1;
+            if (strncmp(ip_roa, ip_consulta, pref_len) == 0) return 1;
+        }
+    }
+    return 0;
+}
+
 roa_tabla_t *roa_tabla_crear(size_t cap) {
     roa_tabla_t *t = calloc(1, sizeof *t);
     if (!t) return NULL;
@@ -18,7 +34,7 @@ int roa_tabla_agregar(roa_tabla_t *t, const char *ip, int isla, time_t vence) {
     if (!t || strlen(ip) >= sizeof t->items[0].ip) return -1;
     if (t->n == t->cap) return -1;               /* el llamador define la capacidad */
     strcpy(t->items[t->n].ip, ip);
-    t->items[t->n].isla  = isla;
+    t->items[t->n].isla  = normalizar_isla(isla);
     t->items[t->n].vence = vence;
     t->n++;
     return 0;
@@ -95,15 +111,18 @@ long roa_almacen_version(void) {
 
 roa_resultado_t roa_almacen_consultar(const char *ip, int isla, time_t ahora) {
     roa_resultado_t res = ROA_UNKNOWN;
+    int isla_norm = normalizar_isla(isla);
     entrar_lectura();
-    if (actual) {
+    if (actual && ip) {
         for (size_t i = 0; i < actual->n; i++) {
             const roa_entrada_t *e = &actual->items[i];
-            if (strcmp(e->ip, ip) != 0) continue;
-            if (e->vence < ahora)      res = ROA_UNKNOWN;   /* vencido: se trata como inexistente */
-            else if (e->isla == isla)  res = ROA_VALID;
-            else                       res = ROA_INVALID;
-            break;
+            if (!ip_coincide_roa(e->ip, ip)) continue;
+            if (e->vence < ahora) continue;                /* vencido: se trata como inexistente */
+            if (normalizar_isla(e->isla) == isla_norm) {
+                res = ROA_VALID;
+                break;
+            }
+            res = ROA_INVALID;
         }
     }
     salir_lectura();                /* el resultado se calculo dentro; no se devuelve ningun puntero */

@@ -23,6 +23,31 @@ static void celda_escribir(tabla_enrutamiento_t *t, int destino, int via, int co
     mmuWriteByte(&t->mmu, celda_dir(destino, via), (uint8_t)costo);
 }
 
+static int normalizar_isla(int asn) {
+    return (asn >= 65001 && asn <= 65031) ? (asn - 65000) : asn;
+}
+
+static char *trim_espacios(char *s) {
+    while (*s == ' ' || *s == '\t' || *s == '\r') s++;
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == '\r')) {
+        s[--len] = '\0';
+    }
+    return s;
+}
+
+static int parsear_id_isla(const char *s) {
+    while (*s == ' ' || *s == '\t') s++;
+    int a = 0, b = 0, c = 0, d = 0;
+    if (sscanf(s, "%d.%d.%d.%d", &a, &b, &c, &d) == 4) {
+        if (a == 172 && b == 16 && c >= 10 && c <= 50 && (c % 10) == 0) {
+            return c / 10;
+        }
+        return 0;
+    }
+    return normalizar_isla(atoi(s));
+}
+
 // Inicializa la tabla con costos en infinito
 void tabla_iniciar(tabla_enrutamiento_t *t, int mi_id, int puerto) {
     if (!t) return;
@@ -84,6 +109,7 @@ void tabla_configurar_isla(tabla_enrutamiento_t *t, int id_isla, const char *ip,
 
 // Consulta si la ruta es valida segun la tabla ROA del punto E
 static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
+    isla = normalizar_isla(isla);
     if (isla <= 0 || isla >= MAX_ISLAS) return 0;
     (void)t;
     char ip[32];
@@ -221,12 +247,13 @@ int tabla_revisar_silencio(tabla_enrutamiento_t *t, int tolerancia, time_t ahora
 
 // Procesa el vector de distancias recibido de un vecino
 int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destinos, const int *costos, size_t n_entradas, time_t ahora) {
+    vecino = normalizar_isla(vecino);
     if (!t || vecino <= 0 || vecino >= MAX_ISLAS || !t->vecinos[vecino].configurado) return 0;
     if (ahora == 0) ahora = time(NULL);
 
     // 1. Revisa si es aviso de muerte (-1 hacia si mismo)
     for (size_t i = 0; i < n_entradas; i++) {
-        if (destinos[i] == vecino && costos[i] == -1) {
+        if (normalizar_isla(destinos[i]) == vecino && costos[i] == -1) {
             return tabla_vecino_caido(t, vecino);
         }
     }
@@ -243,9 +270,11 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
         mejor_camino_sin_candado(t, d, &antes_c[d], &antes_v[d]);
     }
 
-    // 3. Limpia rutas viejas de este vecino y actualiza enlace directo
-    for (int d = 1; d < MAX_ISLAS; d++) {
-        if (d != vecino) celda_escribir(t, d, vecino, INF);
+    // 3. Limpia rutas viejas de este vecino si viene vector completo (si viene 1 ruta, actualiza solo esa)
+    if (n_entradas > 1) {
+        for (int d = 1; d < MAX_ISLAS; d++) {
+            if (d != vecino) celda_escribir(t, d, vecino, INF);
+        }
     }
     t->vecinos[vecino].ultimo_oido = ahora;
     celda_escribir(t, vecino, vecino, t->vecinos[vecino].costo_enlace);
@@ -253,7 +282,7 @@ int tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destino
 
     // 4. Aplica Bellman-Ford con validacion ROA para cada destino
     for (size_t i = 0; i < n_entradas; i++) {
-        int d = destinos[i];
+        int d = normalizar_isla(destinos[i]);
         int c = costos[i];
 
         if (d <= 0 || d >= MAX_ISLAS || d == t->mi_id || d == vecino || c == 0) {
@@ -284,15 +313,15 @@ size_t tabla_armar_vector_para(tabla_enrutamiento_t *t, int vecino, int *destino
 
     size_t count = 0;
     for (int d = 1; d < MAX_ISLAS; d++) {
-        if (d == vecino) continue;
+        if (d == vecino || d == t->mi_id) continue;
         int costo = INF, via = 0;
         mejor_camino_sin_candado(t, d, &costo, &via);
 
-        if (costo == INF && via == 0) continue;
+        if (costo >= INF && via == 0 && !t->destinos_vistos[d]) continue;
 
         if (count < max_out) {
             destinos_out[count] = d;
-            // Poison reverse: si paso por ese vecino, le anuncio -1
+            // Poison reverse e inalcanzables conocidos: se anuncian con -1
             if (costo >= INF || (POISON_REVERSE && via == vecino)) {
                 costos_out[count] = -1;
             } else {
@@ -370,8 +399,7 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
         char *p1 = strchr(buf, '|');
         if (p1) {
             *p1 = '\0';
-            char *cmd = buf;
-            while (*cmd == ' ') cmd++;
+            char *cmd = trim_espacios(buf);
             char *p2 = strchr(p1 + 1, '|');
 
             // Verificar si es ANNOUNCE
@@ -383,29 +411,32 @@ size_t tabla_parsear_announce_texto(const char *texto, int *destinos_out, int *c
 
             if (strcmp(cmd_upper, "ANNOUNCE") == 0 && p2) {
                 *p2 = '\0';
-                char *campo1 = p1 + 1; // En formato 1 es destino; en formato 2 es id_origen
-                char *campo2 = p2 + 1; // En formato 1 es costo; en formato 2 es "d1:c1,d2:c2"
+                char *campo1 = trim_espacios(p1 + 1); // En formato 1 es destino; en formato 2 es id_origen
+                char *campo2 = trim_espacios(p2 + 1); // En formato 1 es costo; en formato 2 es "d1:c1,d2:c2"
 
-                // Si contiene ':' o ',', es el formato compacto de la pizarra
+                // Si contiene ':', es el formato compacto de la pizarra
                 if (strchr(campo2, ':') != NULL) {
-                    // 
                     char *guardado = NULL;
                     char *token = strtok_r(campo2, ",", &guardado);
                     while (token && count < max_entradas) {
-                        int d = 0, c = 0;
-                        if (sscanf(token, "%d:%d", &d, &c) == 2) {
-                            destinos_out[count] = d;
-                            costos_out[count] = c;
-                            count++;
+                        token = trim_espacios(token);
+                        char *colon = strchr(token, ':');
+                        if (colon) {
+                            *colon = '\0';
+                            char *tok_d = trim_espacios(token);
+                            char *tok_c = trim_espacios(colon + 1);
+                            if (tok_d[0] != '\0' && tok_c[0] != '\0') {
+                                destinos_out[count] = parsear_id_isla(tok_d);
+                                costos_out[count] = atoi(tok_c);
+                                count++;
+                            }
                         }
                         token = strtok_r(NULL, ",", &guardado);
                     }
-                } else {
-                    // Formato 1: ANNOUNCE|destino|costo
-                    int d = atoi(campo1);
-                    int c = atoi(campo2);
-                    destinos_out[count] = d;
-                    costos_out[count] = c;
+                } else if (campo1[0] != '\0' && campo2[0] != '\0') {
+                    // Formato 1: ANNOUNCE|destino|costo (con soporte de espacios e IP/ASN)
+                    destinos_out[count] = parsear_id_isla(campo1);
+                    costos_out[count] = atoi(campo2);
                     count++;
                 }
             }
@@ -432,11 +463,18 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         return 0;
     }
 
-    // 1. Mensaje para esta isla
+    origen = normalizar_isla(origen);
+    destino = normalizar_isla(destino);
+    size_t dlen = strlen(datos);
+    while (dlen > 0 && (datos[dlen - 1] == '\r' || datos[dlen - 1] == '\n')) {
+        datos[--dlen] = '\0';
+    }
+
+    // 1. Mensaje para esta isla (formato <ISLA_ORIGEN>|<DATOS> para host_receptor y output.txt)
     if (destino == t->mi_id) {
         strcpy(accion_out, "ENTREGAR");
         if (salto_out) *salto_out = 0;
-        snprintf(nuevo_msg_out, max_len, "%s", datos);
+        snprintf(nuevo_msg_out, max_len, "%d|%s", origen, datos);
         return 0;
     }
 

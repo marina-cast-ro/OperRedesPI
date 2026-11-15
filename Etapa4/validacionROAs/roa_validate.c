@@ -65,6 +65,10 @@ static unsigned char *b64_decode(const char *s, size_t *length) {
 
 /* ---------------- parseo del ROA ---------------- */
 
+static int normalizar_isla(int asn) {
+    return (asn >= 65001 && asn <= 65031) ? (asn - 65000) : asn;
+}
+
 static int entero(const char *s, long *out) {
     if (!*s) return -1;
     for (const char *p = s; *p; p++) if (!isdigit((unsigned char)*p)) return -1;
@@ -101,15 +105,15 @@ int roa_parse(const char *linea, roa_t *out, char *err, size_t errlen) {
 
     size_t l = strlen(copia);
 
-    while (l && (copia[l - 1] == '\n' || copia[l - 1] == '\r')) 
-		copia[--l] = '\0';
+    while (l && (copia[l - 1] == '\n' || copia[l - 1] == '\r' || copia[l - 1] == ' ' || copia[l - 1] == '\t'))
+        copia[--l] = '\0';
 
     char *campo[8];
     int n = 0;
     char *p = copia;
     campo[n++] = p;
     for (; *p; p++) {
-        if (*p == '|') {
+        if (*p == '|' || (n == 1 && *p == ' ')) {
             *p = '\0';
             if (n == 8) { n = 9; break; }
             campo[n++] = p + 1;
@@ -148,7 +152,7 @@ int roa_parse(const char *linea, roa_t *out, char *err, size_t errlen) {
     texto[largo_texto] = '\0';
 
     strcpy(out->ip, campo[1]);
-    out->isla = (int)isla;
+    out->isla = normalizar_isla((int)isla);
     out->num_emisor = num;
     out->emision = emision;
     out->vence = vence;
@@ -377,11 +381,29 @@ roa_veredicto_t roa_validar(const roa_t *roa, X509 *cert, const roa_trusted_root
     roa_veredicto_t v = roa_validar_cadena(cert, raices, ahora, motivo);
     if (v != ROA_OK) return v;
 
-    /* Paso 4: CN exactamente AS<ISLA>-<NUM_EMISOR> */
-    char esperado[64], cn[128];
-    snprintf(esperado, sizeof esperado, "AS%d-%ld", roa->isla, roa->num_emisor);
+    /* Paso 4: CN AS<ISLA>-<NUM_EMISOR> (normalizando ASN 65001..65031 <-> 1..31) */
+    char cn[128];
     int largo = X509_NAME_get_text_by_NID(X509_get_subject_name(cert), NID_commonName, cn, sizeof cn);
-    if (largo < 0 || strcmp(cn, esperado) != 0) {
+    int cn_valido = 0;
+    if (largo >= 0 && strncmp(cn, "AS", 2) == 0) {
+        cn[sizeof cn - 1] = '\0';
+        const char *dash = strchr(cn + 2, '-');
+        if (dash && dash > cn + 2) {
+            size_t len_isla = (size_t)(dash - (cn + 2));
+            if (len_isla < 32) {
+                char isla_txt[32];
+                memcpy(isla_txt, cn + 2, len_isla);
+                isla_txt[len_isla] = '\0';
+                long cn_isla = 0, cn_num = 0;
+                if (entero(isla_txt, &cn_isla) == 0 && entero(dash + 1, &cn_num) == 0
+                    && normalizar_isla((int)cn_isla) == normalizar_isla(roa->isla)
+                    && cn_num == roa->num_emisor) {
+                    cn_valido = 1;
+                }
+            }
+        }
+    }
+    if (!cn_valido) {
         *motivo = "el CN no coincide con la isla y el emisor del ROA";
         return ROA_RECHAZADO;
     }
