@@ -42,7 +42,7 @@ documentación, diseño e implementación de cada etapa.
 | 1     | Del Raspberry Pi a la base de datos        | Completada  |
 | 2     | Construcción de las tablas de enrutamiento | Completada  |
 | 3     | Diseño de RPKI                             | Completada  |
-| 4     | Implementación de RPKI                     | En progreso |
+| 4     | Implementación de RPKI                     | Completada  |
 | 5     | -                                          | -           |
 
 ## Instrucciones de Uso
@@ -91,34 +91,76 @@ _Pendiente: instrucciones de compilación y ejecución._
 
 ### Etapa 4
 
-#### Certificados
+Requiere `gcc`, `make`, `python3`, `openssl` y las bibliotecas de desarrollo de OpenSSL (`sudo apt install libssl-dev`).
 
-> Ubicarse dentro de la carpeta Etapa4/certificados/ (requiere `sudo apt install libssl-dev`)
+#### 1. Compilación y Pruebas Unitarias por Módulo
 
-``` bash
+```bash
+# Certificados (truststore y validación X.509)
+make -C Etapa4/certificados
 
-# Crear la CA del grupo (una sola vez)
-bash crear-ca.sh
+# Validación de formato y firma de ROAs (18 casos de prueba)
+make -C Etapa4/validacionROAs test
 
-# Compilación de la prueba del módulo de certificados
-make
+# Repositorio de ROAs con sistema de archivos simulado (puerto TCP 9000)
+make -C Etapa4/repositorio test
 
+# Nodo Host (host_emisor, host_receptor, host_datos)
+make -C Etapa4/host
+
+# Enrutador (Vector de Distancias + MMU + RPKI)
+make -C Etapa4/vector
 ```
 
-#### Repositorio
+#### 2. Prueba Integral Local (`127.0.0.1`)
 
-> Ubicarse dentro de la carpeta Etapa4/repositorio/ (requiere `sudo apt install libssl-dev`)
+Levanta automáticamente 4 islas (`1`, `2`, `4`, `5`), el repositorio de ROAs y los receptores locales, validando convergencia multi-salto, entrega de paquetes `DATA`, los 4 ataques RPKI, estadísticas de MMU/tráfico y reconvergencia ante caída de enlaces:
 
-``` bash
-
-# Compilación del servidor
-make
-
-# Pruebas del servidor
-make test
-
-# Levantar el repositorio en el puerto 9000
-# Usa /etc/rpki/truststore/trusted-roots.pem, o se le puede pasar otro truststore y otro puerto
-./build/repoServer
-
+```bash
+./red/simular_casa.sh --auto-test
 ```
+
+Para ejecutar la batería de los **4 ataques de seguridad RPKI** de forma independiente:
+
+```bash
+# Modo local (127.0.0.1: repo 19000, router 15002)
+./red/probar_ataques.sh --local all
+
+# Modo laboratorio (repo 172.16.20.10:9000, router 172.16.20.1:5005)
+./red/probar_ataques.sh --lab --repo <IP_REPO>:9000 --router 172.16.20.1:5005 all
+```
+
+#### 3. Ejecución en Laboratorio Físico (Isla 2 - Koopatroopas)
+
+El entorno se despliega en 3 máquinas conectadas al switch Cisco 2960 (`red/sw-isla-2.txt`):
+
+1. **Repositorio ROA (`Fa0/9`):**
+   ```bash
+   # Configura IP (VLAN 20 local, VLAN 99 global o modo dual) e inicia build/repoServer
+   sudo ./red/iniciar_repositorio.sh --red <INTERFAZ>
+   # O directamente con IP ya configurada:
+   cd Etapa4/repositorio && ./build/repoServer ../certificados/trusted-roots.pem 9000
+   ```
+
+2. **Host Emisor y Receptor (`Fa0/2`, IP por DHCP):**
+   *(Requiere contar localmente con la llave privada `Etapa4/certificados/nodo.key` correspondiente a `nodo.crt`)*
+   ```bash
+   # Menú interactivo (Opción 4: publica ROA en bucle --loop y levanta host_receptor en :5005)
+   ./red/iniciar_emisor_receptor.sh
+   ```
+   También permite enviar paquetes `DATA` mediante la Opción 2 o directamente:
+   ```bash
+   cd Etapa4/host
+   ./host_datos 172.16.20.1 5005 2 <ISLA_DESTINO> "<MENSAJE>"
+   ```
+
+3. **Enrutador Linux (`Fa0/3` Troncal):**
+   ```bash
+   # Configura subinterfaces VLAN (20, 112, 124, 125, 99) y asegura net.ipv4.ip_forward=0
+   sudo ./red/configurar_enrutador.sh <INTERFAZ>
+
+   # Iniciar enrutador (actualizando "servidor_local" en config_koopatroopas.json con la IP DHCP del Host)
+   cd Etapa4/vector
+   ./enrutador --red config_koopatroopas.json [<IP_REPO>:<PUERTO>]
+   ```
+   *(Al detener el enrutador con `Ctrl+C`, envía aviso de muerte `-1` e imprime el reporte de la MMU y de tráfico `DATA`).*
