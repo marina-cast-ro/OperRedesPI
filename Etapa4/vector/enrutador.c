@@ -33,8 +33,10 @@ static int g_punto_e_activo = 0;
 // Si no hay "servidor_local" solo se guarda en output.txt.
 static char g_ip_local[64] = "";                  // IP de la compu local receptora
 static int  g_puerto_local = PUERTO_TCP_DEFECTO;  // Puerto de la compu local receptora
+static int  g_intervalo_anuncio = INTERVALO_ANUNCIO;
+static int  g_tolerancia_silencio = TOLERANCIA_SILENCIO;
 
-// Lectura de la compu receptora local desde el archivo de configuración JSON
+// Lectura de la compu receptora local y temporizadores desde el archivo de configuración JSON
 // El guardado de los datos del receptor se realiza en las 2 variables estáticas de arriba
 static void cargar_destino_local(const char *ruta_cfg) {
     char json[16384];
@@ -60,11 +62,23 @@ static void cargar_destino_local(const char *ruta_cfg) {
         }
     }
 
-    // PUERTO: Búsqueda de "puerto_local": "X.X.X.X"
+    // PUERTO: Búsqueda de "puerto_local": NNNN
     key_pos = strstr(json, "\"puerto_local\"");
     if (key_pos && (key_pos = strchr(key_pos + 14, ':'))) {
         int p = atoi(key_pos + 1);
         if (p > 0 && p < 65536) g_puerto_local = p;
+    }
+
+    key_pos = strstr(json, "\"intervalo_announce_seg\"");
+    if (key_pos && (key_pos = strchr(key_pos + 22, ':'))) {
+        int val = atoi(key_pos + 1);
+        if (val > 0) g_intervalo_anuncio = val;
+    }
+
+    key_pos = strstr(json, "\"tolerancia_silencio_seg\"");
+    if (key_pos && (key_pos = strchr(key_pos + 24, ':'))) {
+        int val = atoi(key_pos + 1);
+        if (val > 0) g_tolerancia_silencio = val;
     }
  
     // Validación de IP (que corresponda a ser IPv4)
@@ -106,8 +120,29 @@ static int leer_campo_repositorio(const char *json, const char *clave, char *out
     return 0;
 }
 
+static int leer_entero_repositorio(const char *json, const char *clave, int *out) {
+    const char *sec = strstr(json, "\"repositorio\"");
+    if (!sec) return -1;
+    const char *ini = strchr(sec, '{');
+    if (!ini) return -1;
+    const char *fin = strchr(ini, '}');
+    if (!fin) return -1;
+
+    char patron[64];
+    snprintf(patron, sizeof(patron), "\"%s\"", clave);
+    const char *k = strstr(ini, patron);
+    if (!k || k > fin) return -1;
+    k = strchr(k + strlen(patron), ':');
+    if (!k || k > fin) return -1;
+    k++;
+    while (k < fin && (*k == ' ' || *k == '\t')) k++;
+    if (k >= fin || *k < '0' || *k > '9') return -1;
+    *out = atoi(k);
+    return 0;
+}
+
 // Arranca el punto E si se conoce la IP del repositorio; si no, solo el almacen vacio.
-// La IP viene del argumento 'ip_arg' (tiene prioridad) o del JSON ("repositorio": {"ip": ...}).
+// La IP viene del argumento 'ip_arg' (tiene prioridad, admite ip[:puerto]) o del JSON ("repositorio": {"ip": ...}).
 static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
     char json[16384];
     size_t len = 0;
@@ -120,8 +155,15 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
 
     char ip[64] = "", id[64] = "", truststore[256];
     int tiene_ip = 0;
+    int puerto_cli = 0;
     if (ip_arg && ip_arg[0] != '\0') {
         snprintf(ip, sizeof(ip), "%s", ip_arg);
+        char *colon = strchr(ip, ':');
+        if (colon) {
+            *colon = '\0';
+            int p = atoi(colon + 1);
+            if (p > 0 && p < 65536) puerto_cli = p;
+        }
         tiene_ip = 1;
     } else if (leer_campo_repositorio(json, "ip", ip, sizeof(ip)) == 0) {
         tiene_ip = 1;
@@ -139,6 +181,18 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
             fprintf(stderr, "[ROA] IP del repositorio invalida: '%s'. Tabla ROA vacia.\n", ip);
         } else {
             punto_e_cfg_t cfg = punto_e_cfg_defecto(ip, id);
+            int val = 0;
+            if (puerto_cli > 0) {
+                cfg.repo.puerto = puerto_cli;
+            } else if (leer_entero_repositorio(json, "puerto", &val) == 0 && val > 0 && val < 65536) {
+                cfg.repo.puerto = val;
+            }
+            if (leer_entero_repositorio(json, "periodo_s", &val) == 0 && val > 0) {
+                cfg.periodo_s = val;
+            }
+            if (leer_entero_repositorio(json, "espera_inicial_max_s", &val) == 0 && val >= 0) {
+                cfg.espera_inicial_max_s = val;
+            }
             if (leer_campo_repositorio(json, "truststore", truststore, sizeof(truststore)) == 0) {
                 snprintf(cfg.ruta_truststore, sizeof(cfg.ruta_truststore), "%s", truststore);
             } else if (access(cfg.ruta_truststore, R_OK) != 0) {
@@ -150,7 +204,8 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
             }
             if (punto_e_iniciar(&cfg) == 0) {
                 g_punto_e_activo = 1;
-                fprintf(stderr, "[ROA] Sincronizador del punto E activo (repositorio %s, id %s).\n", ip, id);
+                fprintf(stderr, "[ROA] Sincronizador del punto E activo (repositorio %s:%d, id %s).\n",
+                        ip, cfg.repo.puerto, id);
                 return;
             }
             fprintf(stderr, "[ROA] No se pudo iniciar el punto E. Se usa una tabla ROA vacia.\n");
@@ -207,8 +262,9 @@ static void anunciar_a_vecinos(tabla_enrutamiento_t *t, int muerte) {
         const char *ip = t->ips[v];
         if (ip[0] == '\0') continue;
 
+        int puerto = (t->vecinos[v].puerto > 0) ? t->vecinos[v].puerto : t->puerto_tcp;
         tabla_armar_announce_texto(t, v, muerte, buffer, sizeof(buffer));
-        enviar_tcp(ip, t->puerto_tcp, buffer);
+        enviar_tcp(ip, puerto, buffer);
     }
 }
 
@@ -237,30 +293,62 @@ static void *hilo_conexion(void *arg) {
             char ip_remota[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &peer.sin_addr, ip_remota, sizeof(ip_remota));
 
-            // Se acepta la conexion SOLO SI la IP origen es la de un vecino PRE-configurado
-            int id_vecino = 0;
-            for (int v = 1; v < MAX_ISLAS; v++) {
-                if (g_tabla.vecinos[v].configurado && strcmp(g_tabla.ips[v], ip_remota) == 0) {
-                    id_vecino = v;
+            int destinos[MAX_ISLAS];
+            int costos[MAX_ISLAS];
+            size_t n = tabla_parsear_announce_texto(msg, destinos, costos, MAX_ISLAS);
+
+            int isla_hdr = 0;
+            const char *p1 = strchr(msg, '|');
+            if (p1) {
+                int raw_hdr = atoi(p1 + 1);
+                isla_hdr = (raw_hdr >= 65001 && raw_hdr <= 65031) ? (raw_hdr - 65000) : raw_hdr;
+            }
+
+            int auto_ruta_falsa = 0;
+            for (size_t i = 0; i < n; i++) {
+                if (isla_hdr > 0 && destinos[i] == isla_hdr && costos[i] > 0) {
+                    auto_ruta_falsa = 1;
                     break;
                 }
+            }
+
+            // Determinar vecino configurado para esa IP (soporta vecinos en 127.0.0.1 con puertos distintos)
+            int primer_vecino = 0;
+            int vecino_distinto = 0;
+            for (int v = 1; v < MAX_ISLAS; v++) {
+                if (g_tabla.vecinos[v].configurado && strcmp(g_tabla.ips[v], ip_remota) == 0) {
+                    if (primer_vecino == 0) primer_vecino = v;
+                    if (v != isla_hdr && vecino_distinto == 0) vecino_distinto = v;
+                }
+            }
+
+            int id_vecino = 0;
+            if (isla_hdr > 0 && isla_hdr < MAX_ISLAS
+                && g_tabla.vecinos[isla_hdr].configurado
+                && strcmp(g_tabla.ips[isla_hdr], ip_remota) == 0
+                && !auto_ruta_falsa) {
+                id_vecino = isla_hdr;
+            } else if (vecino_distinto > 0) {
+                id_vecino = vecino_distinto;
+            } else {
+                id_vecino = primer_vecino;
             }
 
             // id_vecino DEBE ser algun numero entre 1 a MAX_ISLAS (32)
             if (id_vecino == 0) {
                 fprintf(stderr, "[SEGURIDAD] ANNOUNCE descartado: %s no es un vecino configurado\n", ip_remota);
+                fflush(stderr);
                 close(client_sock);
                 return NULL;
             }
 
-            int destinos[MAX_ISLAS];
-            int costos[MAX_ISLAS];
-            size_t n = tabla_parsear_announce_texto(msg, destinos, costos, MAX_ISLAS);
+            if (!tabla_validar_anuncio_origen(&g_tabla, id_vecino, isla_hdr, time(NULL))) {
+                close(client_sock);
+                return NULL;
+            }
 
-            if (id_vecino > 0) {
-                if (tabla_recibir_vector(&g_tabla, id_vecino, destinos, costos, n, time(NULL))) {
-                    tabla_imprimir(&g_tabla);
-                }
+            if (tabla_recibir_vector(&g_tabla, id_vecino, destinos, costos, n, time(NULL))) {
+                tabla_imprimir(&g_tabla);
             }
         } else if (strncmp(msg, "DATA", 4) == 0) {
             char accion[32], nuevo_msg[2048];
@@ -270,6 +358,7 @@ static void *hilo_conexion(void *arg) {
 
             if (strcmp(accion, "ENTREGAR") == 0) {
                 printf("[DATA RECIBIDO] %s\n", nuevo_msg);
+                fflush(stdout);
                 // PASO 1: Guardar en output.txt del router (como pide el enunciado)
                 FILE *f = fopen("output.txt", "a");
                 if (f) {
@@ -285,13 +374,18 @@ static void *hilo_conexion(void *arg) {
                     // Abre la conexión, envía y cierra, devuelve 0 si no hubo errores 
                     if (enviar_tcp(g_ip_local, g_puerto_local, mensaje_host) == 0) {
                         printf("[DATA ENTREGADO] a %s:%d\n", g_ip_local, g_puerto_local);
+                        fflush(stdout);
                     } else {
                         fprintf(stderr, "[DATA ERROR] No se pudo entregar a %s:%d\n", g_ip_local, g_puerto_local);
+                        fflush(stderr);
                     }
                 }
             } else if (strcmp(accion, "REENVIAR") == 0) {
                 strcat(nuevo_msg, "\n");
-                enviar_tcp(g_tabla.ips[siguiente_salto], g_tabla.puerto_tcp, nuevo_msg);
+                int puerto_salto = (g_tabla.vecinos[siguiente_salto].puerto > 0)
+                                       ? g_tabla.vecinos[siguiente_salto].puerto
+                                       : g_tabla.puerto_tcp;
+                enviar_tcp(g_tabla.ips[siguiente_salto], puerto_salto, nuevo_msg);
             } else {
                 char hora[16];
                 time_t ahora = time(NULL);
@@ -299,6 +393,7 @@ static void *hilo_conexion(void *arg) {
                 localtime_r(&ahora, &tm_info);
                 strftime(hora, sizeof(hora), "%H:%M:%S", &tm_info);
                 printf("[%s] [DATA DESCARTADO] %s\n", hora, nuevo_msg);
+                fflush(stdout);
             }
         }
     }
@@ -307,18 +402,18 @@ static void *hilo_conexion(void *arg) {
     return NULL;
 }
 
-// Hilo para enviar anuncios cada 30s y verificar silencios de 90s
+// Hilo para enviar anuncios periodicamente y verificar silencios
 static void *hilo_temporizador(void *arg) {
     (void)arg;
     if (g_ejecutando) {
         anunciar_a_vecinos(&g_tabla, 0);
     }
     while (g_ejecutando) {
-        sleep(INTERVALO_ANUNCIO);
+        sleep((unsigned int)g_intervalo_anuncio);
         if (!g_ejecutando) break;
 
         anunciar_a_vecinos(&g_tabla, 0);
-        if (tabla_revisar_silencio(&g_tabla, TOLERANCIA_SILENCIO, time(NULL))) {
+        if (tabla_revisar_silencio(&g_tabla, g_tolerancia_silencio, time(NULL))) {
             tabla_imprimir(&g_tabla);
         }
     }
@@ -329,6 +424,7 @@ static void *hilo_temporizador(void *arg) {
 static void manejador_senales(int sig) {
     (void)sig;
     printf("\nCerrando nodo y enviando aviso de muerte (-1) a los vecinos...\n");
+    fflush(stdout);
     anunciar_a_vecinos(&g_tabla, 1);
     g_ejecutando = 0;
     if (g_socket_servidor >= 0) {
@@ -380,6 +476,7 @@ static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
 
     listen(g_socket_servidor, 16);
     printf("Enrutador C de isla %d escuchando en TCP puerto %d...\n", g_tabla.mi_id, g_tabla.puerto_tcp);
+    fflush(stdout);
 
     pthread_t th_timer;
     pthread_create(&th_timer, NULL, hilo_temporizador, NULL);

@@ -76,6 +76,9 @@ void tabla_configurar_vecino(tabla_enrutamiento_t *t, int id_vecino, int costo, 
     if (!t || id_vecino <= 0 || id_vecino >= MAX_ISLAS) return;
     pthread_mutex_lock(&t->candado);
     t->vecinos[id_vecino].id = id_vecino;
+    if (t->vecinos[id_vecino].puerto <= 0) {
+        t->vecinos[id_vecino].puerto = t->puerto_tcp ? t->puerto_tcp : PUERTO_TCP_DEFECTO;
+    }
     t->vecinos[id_vecino].costo_enlace = costo;
     t->vecinos[id_vecino].configurado = 1;
     t->vecinos[id_vecino].ultimo_oido = 0;
@@ -117,7 +120,31 @@ static int es_ruta_valida_roa(tabla_enrutamiento_t *t, int isla, time_t ahora) {
 
     roa_resultado_t res = roa_almacen_consultar(ip, isla, ahora);
     if (res == ROA_INVALID) {
-        fprintf(stderr, "[ROA] Ruta descartada: isla %d no autorizada para IP %s\n", isla, ip);
+        fprintf(stderr, "[ROA] Ruta descartada (INVALID): isla %d no autorizada para IP %s\n", isla, ip);
+        fflush(stderr);
+        return 0;
+    }
+    return 1;
+}
+
+int tabla_validar_anuncio_origen(tabla_enrutamiento_t *t, int vecino_real, int isla_anunciada, time_t ahora) {
+    (void)t;
+    if (ahora == 0) ahora = time(NULL);
+    vecino_real = normalizar_isla(vecino_real);
+    isla_anunciada = normalizar_isla(isla_anunciada);
+    if (vecino_real <= 0 || vecino_real >= MAX_ISLAS ||
+        isla_anunciada <= 0 || isla_anunciada >= MAX_ISLAS ||
+        isla_anunciada == vecino_real) {
+        return 1;
+    }
+
+    char ip[32];
+    snprintf(ip, sizeof ip, "172.16.%d0.10", isla_anunciada);
+    roa_resultado_t res = roa_almacen_consultar(ip, vecino_real, ahora);
+    if (res == ROA_INVALID) {
+        fprintf(stderr, "[ROA] Ruta descartada (INVALID): vecino %d no autorizado para anunciar prefijo de isla %d (172.16.%d0.10)\n",
+                vecino_real, isla_anunciada, isla_anunciada);
+        fflush(stderr);
         return 0;
     }
     return 1;
@@ -504,6 +531,7 @@ int tabla_procesar_data(tabla_enrutamiento_t *t, const char *msg_data, char *acc
         localtime_r(&ahora, &tm_info);
         strftime(hora, sizeof(hora), "%Y-%m-%d %H:%M:%S", &tm_info);
         printf("[REENVIO %s] origen=%d destino=%d siguiente_salto=%d ttl=%d\n", hora, origen, destino, salto, ttl);
+        fflush(stdout);
     }
     strcpy(accion_out, "REENVIAR");
     if (salto_out) *salto_out = salto;
@@ -549,6 +577,7 @@ void tabla_imprimir(tabla_enrutamiento_t *t) {
             printf("  -> %s: INALCANZABLE\n", etiq_d);
         }
     }
+    fflush(stdout);
     pthread_mutex_unlock(&t->candado);
 }
 
@@ -592,23 +621,48 @@ int tabla_cargar_config_json(tabla_enrutamiento_t *t, const char *ruta_json) {
         }
     }
 
-       // Leer vecinos directos: isla, IP en la VLAN de transito y costo
+    // Leer vecinos directos: isla, IP, puerto (opcional) y costo
     char *vec_sec = strstr(buf, "\"vecinos\"");
     if (vec_sec) {
-        for (int id = 1; id < MAX_ISLAS; id++) {
+        char *vec_ini = strchr(vec_sec, '{');
+        char *vec_fin = NULL;
+        if (vec_ini) {
+            int depth = 0;
+            for (char *c = vec_ini; *c; c++) {
+                if (*c == '{') depth++;
+                else if (*c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        vec_fin = c;
+                        break;
+                    }
+                }
+            }
+        }
+        for (int id = 1; id < MAX_ISLAS && vec_ini; id++) {
             char patron[32];
             snprintf(patron, sizeof(patron), "\"%d\"", id);
-            char *pos = strstr(vec_sec, patron);
-            if (pos) {
-                char ip[32] = {0}, equipo[32] = {0};
-                int costo = 1;
-                char *pos_ip = strstr(pos, "\"ip\"");
-                char *pos_eq = strstr(pos, "\"equipo\"");
-                char *pos_costo = strstr(pos, "\"costo\"");
-                if (pos_ip) sscanf(pos_ip, "\"ip\"%*[^\"]\"%31[^\"]\"", ip);
-                if (pos_eq) sscanf(pos_eq, "\"equipo\"%*[^\"]\"%31[^\"]\"", equipo);
-                if (pos_costo) sscanf(pos_costo, "\"costo\"%*[^0-9]%d", &costo);
-                tabla_configurar_vecino(t, id, costo, ip, equipo);
+            char *pos = strstr(vec_ini, patron);
+            if (pos && (!vec_fin || pos < vec_fin)) {
+                char *ini_obj = strchr(pos + strlen(patron), '{');
+                char *fin_obj = ini_obj ? strchr(ini_obj, '}') : NULL;
+                if (ini_obj && fin_obj) {
+                    char ip[32] = {0}, equipo[32] = {0};
+                    int costo = 1;
+                    int v_puerto = t->puerto_tcp;
+                    char *pos_ip = strstr(ini_obj, "\"ip\"");
+                    char *pos_eq = strstr(ini_obj, "\"equipo\"");
+                    char *pos_costo = strstr(ini_obj, "\"costo\"");
+                    char *pos_puerto = strstr(ini_obj, "\"puerto\"");
+                    if (pos_ip && pos_ip < fin_obj) sscanf(pos_ip, "\"ip\"%*[^\"]\"%31[^\"]\"", ip);
+                    if (pos_eq && pos_eq < fin_obj) sscanf(pos_eq, "\"equipo\"%*[^\"]\"%31[^\"]\"", equipo);
+                    if (pos_costo && pos_costo < fin_obj) sscanf(pos_costo, "\"costo\"%*[^0-9]%d", &costo);
+                    if (pos_puerto && pos_puerto < fin_obj) sscanf(pos_puerto, "\"puerto\"%*[^0-9]%d", &v_puerto);
+                    tabla_configurar_vecino(t, id, costo, ip, equipo);
+                    if (v_puerto > 0 && v_puerto < 65536) {
+                        t->vecinos[id].puerto = v_puerto;
+                    }
+                }
             }
         }
     }

@@ -19,6 +19,7 @@
 // Enlace directo con un vecino
 typedef struct {
     int id;
+    int puerto;              // Puerto TCP del vecino (5005 por defecto)
     int costo_enlace;        // Costo del enlace directo
     time_t ultimo_oido;      // Ultima vez que envio announce
     int configurado;         // 1 si es vecino directo
@@ -63,6 +64,7 @@ int  tabla_siguiente_salto(tabla_enrutamiento_t *t, int destino);
 void tabla_obtener_resumen(tabla_enrutamiento_t *t, ruta_optima_t *resumen_out, size_t *n_out);
 
 // Actualizaciones Bellman-Ford
+int  tabla_validar_anuncio_origen(tabla_enrutamiento_t *t, int vecino_real, int isla_anunciada, time_t ahora);
 int  tabla_recibir_vector(tabla_enrutamiento_t *t, int vecino, const int *destinos, const int *costos, size_t n_entradas, time_t ahora);
 int  tabla_vecino_caido(tabla_enrutamiento_t *t, int vecino);
 int  tabla_revisar_silencio(tabla_enrutamiento_t *t, int tolerancia, time_t ahora);
