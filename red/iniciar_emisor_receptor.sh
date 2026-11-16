@@ -45,7 +45,7 @@ read -p "Selecciona una opcion [1-5]: " OPCION
 
 case $OPCION in
     1)
-        read -p "IP del Repositorio [172.16.20.10]: " IP_REPO
+        read -p "IP del Repositorio (172.16.20.10 local, o 172.16.20.1 si usa puente a VLAN 99) [172.16.20.10]: " IP_REPO
         IP_REPO="${IP_REPO:-172.16.20.10}"
         read -p "Puerto del Repositorio [9000]: " PUERTO_REPO
         PUERTO_REPO="${PUERTO_REPO:-9000}"
@@ -95,7 +95,7 @@ case $OPCION in
         "$DIR_HOST/host_receptor" 5005 "$ARCHIVO_REC"
         ;;
     4)
-        read -p "IP del Repositorio [172.16.20.10]: " IP_REPO
+        read -p "IP del Repositorio (172.16.20.10 local, o 172.16.20.1 si usa puente a VLAN 99) [172.16.20.10]: " IP_REPO
         IP_REPO="${IP_REPO:-172.16.20.10}"
         KEY="$DEFAULT_KEY"
         CRT="$DEFAULT_CRT"
