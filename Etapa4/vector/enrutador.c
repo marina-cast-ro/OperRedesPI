@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
 
@@ -152,30 +154,60 @@ static int leer_entero_repositorio(const char *json, const char *clave, int *out
     return 0;
 }
 
+static int conectar_tcp_timeout(const char *ip, int puerto, int timeout_ms) {
+    if (!ip || ip[0] == '\0' || puerto <= 0) return -1;
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return -1;
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (flags >= 0) fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons((uint16_t)puerto);
+    if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) != 1) {
+        close(sock);
+        return -1;
+    }
+
+    int r = connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+    if (r < 0 && errno != EINPROGRESS) {
+        close(sock);
+        return -1;
+    }
+    if (r < 0) {
+        struct pollfd pfd = { .fd = sock, .events = POLLOUT };
+        int pr = poll(&pfd, 1, timeout_ms);
+        int soerr = 0;
+        socklen_t sl = sizeof(soerr);
+        if (pr <= 0 || getsockopt(sock, SOL_SOCKET, SO_ERROR, &soerr, &sl) < 0 || soerr != 0) {
+            close(sock);
+            return -1;
+        }
+    }
+
+    if (flags >= 0) fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    return sock;
+}
+
 static void *hilo_sesion_puente(void *arg) {
     int cli_sock = (int)(intptr_t)arg;
-    int repo_sock = socket(AF_INET, SOCK_STREAM, 0);
+    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
+    setsockopt(cli_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(cli_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    int repo_sock = conectar_tcp_timeout(g_repo_ip, g_repo_puerto, 3000);
     if (repo_sock < 0) {
         close(cli_sock);
         return NULL;
     }
-
-    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
-    setsockopt(cli_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(cli_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     setsockopt(repo_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(repo_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    struct sockaddr_in raddr;
-    memset(&raddr, 0, sizeof(raddr));
-    raddr.sin_family = AF_INET;
-    raddr.sin_port = htons((uint16_t)g_repo_puerto);
-    if (inet_pton(AF_INET, g_repo_ip, &raddr.sin_addr) != 1 ||
-        connect(repo_sock, (struct sockaddr *)&raddr, sizeof(raddr)) < 0) {
-        close(repo_sock);
-        close(cli_sock);
-        return NULL;
-    }
 
     struct pollfd fds[2];
     fds[0].fd = cli_sock;  fds[0].events = POLLIN;
@@ -188,12 +220,12 @@ static void *hilo_sesion_puente(void *arg) {
         if (fds[0].revents & (POLLIN | POLLHUP | POLLERR)) {
             ssize_t n = recv(cli_sock, buf, sizeof(buf), 0);
             if (n <= 0) break;
-            if (send(repo_sock, buf, (size_t)n, 0) <= 0) break;
+            if (send(repo_sock, buf, (size_t)n, MSG_NOSIGNAL) <= 0) break;
         }
         if (fds[1].revents & (POLLIN | POLLHUP | POLLERR)) {
             ssize_t n = recv(repo_sock, buf, sizeof(buf), 0);
             if (n <= 0) break;
-            if (send(cli_sock, buf, (size_t)n, 0) <= 0) break;
+            if (send(cli_sock, buf, (size_t)n, MSG_NOSIGNAL) <= 0) break;
         }
     }
 
@@ -346,33 +378,12 @@ static void detener_roas(void) {
     }
 }
 
-// Envia un mensaje TCP al router vecino con timeout de 5s
+// Envia un mensaje TCP al router vecino con timeout no bloqueante de 1.5s
 static int enviar_tcp(const char *ip, int puerto, const char *texto) {
-    if (!ip || ip[0] == '\0') return -1;
-
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = conectar_tcp_timeout(ip, puerto, 1500);
     if (sock < 0) return -1;
 
-    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons((uint16_t)puerto);
-
-    if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0) {
-        close(sock);
-        return -1;
-    }
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        close(sock);
-        return -1;
-    }
-
-    send(sock, texto, strlen(texto), 0);
+    send(sock, texto, strlen(texto), MSG_NOSIGNAL);
     close(sock);
     return 0;
 }
@@ -394,6 +405,10 @@ static void anunciar_a_vecinos(tabla_enrutamiento_t *t, int muerte) {
 // Hilo que atiende un paquete entrante (ANNOUNCE o DATA)
 static void *hilo_conexion(void *arg) {
     int client_sock = (int)(intptr_t)arg;
+    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
+    setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
     char buffer[4096];
     ssize_t leidos = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
 
@@ -455,6 +470,25 @@ static void *hilo_conexion(void *arg) {
                 id_vecino = vecino_distinto;
             } else {
                 id_vecino = primer_vecino;
+            }
+
+            // Si la inyeccion viene de la propia maquina o LAN local (ej. probar_ataques.sh en demo),
+            // asociarla a un vecino configurado distinto de isla_hdr para evaluar RPKI.
+            if (id_vecino == 0 && (strncmp(ip_remota, "127.", 4) == 0 || strncmp(ip_remota, "172.16.20.", 10) == 0)) {
+                for (int v = 1; v < MAX_ISLAS; v++) {
+                    if (g_tabla.vecinos[v].configurado && v != isla_hdr) {
+                        id_vecino = v;
+                        break;
+                    }
+                }
+                if (id_vecino == 0) {
+                    for (int v = 1; v < MAX_ISLAS; v++) {
+                        if (g_tabla.vecinos[v].configurado) {
+                            id_vecino = v;
+                            break;
+                        }
+                    }
+                }
             }
 
             // id_vecino DEBE ser algun numero entre 1 a MAX_ISLAS (32)
@@ -583,6 +617,7 @@ static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
 
     signal(SIGINT, manejador_senales);
     signal(SIGTERM, manejador_senales);
+    signal(SIGPIPE, SIG_IGN);
 
     g_socket_servidor = socket(AF_INET, SOCK_STREAM, 0);
     if (g_socket_servidor < 0) {

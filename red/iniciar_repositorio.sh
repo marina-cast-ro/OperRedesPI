@@ -40,8 +40,9 @@ if [ "$MODO_RED" -eq 1 ]; then
         2)
             ip addr flush dev "$IFACE" 2>/dev/null || true
             ip addr add 172.16.99.20/24 dev "$IFACE"
+            ip addr add 172.30.99.20/24 dev "$IFACE"
             ip link set dev "$IFACE" up
-            echo "[OK] $IFACE configurada con 172.16.99.20/24 (VLAN 99)"
+            echo "[OK] $IFACE configurada con 172.16.99.20/24 y 172.30.99.20/24 (VLAN 99)"
             ;;
         3)
             ip addr flush dev "$IFACE" 2>/dev/null || true
@@ -51,8 +52,9 @@ if [ "$MODO_RED" -eq 1 ]; then
             ip link add link "$IFACE" name "${IFACE}.99" type vlan id 99 2>/dev/null || true
             ip addr flush dev "${IFACE}.99" 2>/dev/null || true
             ip addr add 172.16.99.20/24 dev "${IFACE}.99"
+            ip addr add 172.30.99.20/24 dev "${IFACE}.99"
             ip link set dev "${IFACE}.99" up
-            echo "[OK] Modo Dual activo: 172.16.20.10/24 ($IFACE) y 172.16.99.20/24 (${IFACE}.99)"
+            echo "[OK] Modo Dual activo: 172.16.20.10/24 ($IFACE) y 172.16.99.20/24 + 172.30.99.20/24 (${IFACE}.99)"
             ;;
         *)
             echo "[*] Omitiendo configuracion de interfaz."
