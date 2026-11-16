@@ -1,6 +1,6 @@
 Building configuration...
 
-Current configuration : 2841 bytes
+Current configuration : 2919 bytes
 !
 version 12.2
 no service pad
@@ -22,7 +22,7 @@ ip dhcp excluded-address 172.16.20.200 172.16.20.254
 ip dhcp pool POOL-ISLA2-VLAN20
    network 172.16.20.0 255.255.255.0
    default-router 172.16.20.1 
-!
+!         
 no ip domain-lookup
 !
 !
@@ -45,7 +45,7 @@ vlan 112
 vlan 124
  name TRANSITO_ISLA2_ISLA4
 !
-vlan 125
+vlan 125  
  name TRANSITO_ISLA2_ISLA5
 !
 interface FastEthernet0/1
@@ -61,14 +61,14 @@ interface FastEthernet0/2
 !
 interface FastEthernet0/3
  description TRONCAL_HACIA_INTERMEDIARIO_LINUX
- switchport trunk allowed vlan 20,112,124,125
+ switchport trunk allowed vlan 20,99,112,124,125
  switchport mode trunk
 !
 interface FastEthernet0/4
  shutdown
 !
 interface FastEthernet0/5
- shutdown
+ shutdown 
 !
 interface FastEthernet0/6
  shutdown
@@ -82,14 +82,16 @@ interface FastEthernet0/8
 interface FastEthernet0/9
  description SERVIDOR_REPOSITORIO_ROA
  switchport access vlan 20
- switchport mode access
- spanning-tree portfast
+ switchport trunk native vlan 20
+ switchport trunk allowed vlan 20,99
+ switchport mode trunk
+ spanning-tree portfast trunk
 !
 interface FastEthernet0/10
  description HOST_SECUNDARIO_VLAN20
  switchport access vlan 20
  switchport mode access
- shutdown
+ shutdown 
  spanning-tree portfast
 !
 interface FastEthernet0/11
@@ -112,7 +114,7 @@ interface FastEthernet0/16
 !
 interface FastEthernet0/17
  shutdown
-!
+!         
 interface FastEthernet0/18
  shutdown
 !
@@ -135,7 +137,7 @@ interface FastEthernet0/24
  shutdown
 !
 interface GigabitEthernet0/1
- shutdown
+ shutdown 
 !
 interface GigabitEthernet0/2
  shutdown
@@ -158,7 +160,7 @@ interface Vlan99
 ip http server
 !
 control-plane
-!
+!         
 banner motd ^CC Acceso Restringido - Isla 2 Koopatroopa ^C
 !
 line con 0
