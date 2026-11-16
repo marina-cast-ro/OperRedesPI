@@ -18,6 +18,7 @@ static volatile sig_atomic_t g_ejecutando = 1;
 static int g_socket_servidor = -1;
 static char g_repo_ip[64] = "";
 static int  g_repo_puerto = 9000;
+static int  g_puente_puerto = 9000;
 static int  g_socket_puente_repo = -1;
 
 // ---------- Punto E: sincronizacion con el repositorio de ROAs ----------
@@ -213,7 +214,7 @@ static void *hilo_puente_repo(void *arg) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons((uint16_t)g_repo_puerto);
+    addr.sin_port = htons((uint16_t)g_puente_puerto);
 
     if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) < 0 || listen(srv, 8) < 0) {
         close(srv);
@@ -222,7 +223,7 @@ static void *hilo_puente_repo(void *arg) {
 
     g_socket_puente_repo = srv;
     fprintf(stderr, "[ROA-RELAY] Puente TCP activo en puerto %d -> %s:%d (permite a host_emisor alcanzar VLAN 99).\n",
-            g_repo_puerto, g_repo_ip, g_repo_puerto);
+            g_puente_puerto, g_repo_ip, g_repo_puerto);
 
     while (g_ejecutando) {
         struct sockaddr_in caddr;
@@ -258,8 +259,15 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
     char ip[64] = "", id[64] = "", truststore[256];
     int tiene_ip = 0;
     int puerto_cli = 0;
+    int puerto_puente_cli = 0;
     if (ip_arg && ip_arg[0] != '\0') {
         snprintf(ip, sizeof(ip), "%s", ip_arg);
+        char *at = strchr(ip, '@');
+        if (at) {
+            *at = '\0';
+            int pp = atoi(at + 1);
+            if (pp > 0 && pp < 65536) puerto_puente_cli = pp;
+        }
         char *colon = strchr(ip, ':');
         if (colon) {
             *colon = '\0';
@@ -308,9 +316,10 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
                 g_punto_e_activo = 1;
                 snprintf(g_repo_ip, sizeof(g_repo_ip), "%s", ip);
                 g_repo_puerto = cfg.repo.puerto;
+                g_puente_puerto = (puerto_puente_cli > 0) ? puerto_puente_cli : cfg.repo.puerto;
                 fprintf(stderr, "[ROA] Sincronizador del punto E activo (repositorio %s:%d, id %s).\n",
                         ip, cfg.repo.puerto, id);
-                if (strcmp(ip, "127.0.0.1") != 0 && strcmp(ip, "172.16.20.1") != 0) {
+                if (puerto_puente_cli > 0 || (strcmp(ip, "127.0.0.1") != 0 && strcmp(ip, "172.16.20.1") != 0)) {
                     pthread_t th_puente;
                     if (pthread_create(&th_puente, NULL, hilo_puente_repo, NULL) == 0) {
                         pthread_detach(th_puente);
