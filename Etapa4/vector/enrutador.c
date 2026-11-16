@@ -10,11 +10,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <poll.h>
 #include <pthread.h>
 
 static tabla_enrutamiento_t g_tabla;
 static volatile sig_atomic_t g_ejecutando = 1;
 static int g_socket_servidor = -1;
+static char g_repo_ip[64] = "";
+static int  g_repo_puerto = 9000;
+static int  g_socket_puente_repo = -1;
 
 // ---------- Punto E: sincronizacion con el repositorio de ROAs ----------
 // La IP del repositorio se pasa como 3er argumento:
@@ -147,6 +151,98 @@ static int leer_entero_repositorio(const char *json, const char *clave, int *out
     return 0;
 }
 
+static void *hilo_sesion_puente(void *arg) {
+    int cli_sock = (int)(intptr_t)arg;
+    int repo_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (repo_sock < 0) {
+        close(cli_sock);
+        return NULL;
+    }
+
+    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
+    setsockopt(cli_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(cli_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    setsockopt(repo_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(repo_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    struct sockaddr_in raddr;
+    memset(&raddr, 0, sizeof(raddr));
+    raddr.sin_family = AF_INET;
+    raddr.sin_port = htons((uint16_t)g_repo_puerto);
+    if (inet_pton(AF_INET, g_repo_ip, &raddr.sin_addr) != 1 ||
+        connect(repo_sock, (struct sockaddr *)&raddr, sizeof(raddr)) < 0) {
+        close(repo_sock);
+        close(cli_sock);
+        return NULL;
+    }
+
+    struct pollfd fds[2];
+    fds[0].fd = cli_sock;  fds[0].events = POLLIN;
+    fds[1].fd = repo_sock; fds[1].events = POLLIN;
+
+    char buf[4096];
+    while (g_ejecutando) {
+        int pr = poll(fds, 2, 10000);
+        if (pr <= 0) break;
+        if (fds[0].revents & (POLLIN | POLLHUP | POLLERR)) {
+            ssize_t n = recv(cli_sock, buf, sizeof(buf), 0);
+            if (n <= 0) break;
+            if (send(repo_sock, buf, (size_t)n, 0) <= 0) break;
+        }
+        if (fds[1].revents & (POLLIN | POLLHUP | POLLERR)) {
+            ssize_t n = recv(repo_sock, buf, sizeof(buf), 0);
+            if (n <= 0) break;
+            if (send(cli_sock, buf, (size_t)n, 0) <= 0) break;
+        }
+    }
+
+    close(repo_sock);
+    close(cli_sock);
+    return NULL;
+}
+
+static void *hilo_puente_repo(void *arg) {
+    (void)arg;
+    int srv = socket(AF_INET, SOCK_STREAM, 0);
+    if (srv < 0) return NULL;
+
+    int opt = 1;
+    setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons((uint16_t)g_repo_puerto);
+
+    if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) < 0 || listen(srv, 8) < 0) {
+        close(srv);
+        return NULL;
+    }
+
+    g_socket_puente_repo = srv;
+    fprintf(stderr, "[ROA-RELAY] Puente TCP activo en puerto %d -> %s:%d (permite a host_emisor alcanzar VLAN 99).\n",
+            g_repo_puerto, g_repo_ip, g_repo_puerto);
+
+    while (g_ejecutando) {
+        struct sockaddr_in caddr;
+        socklen_t clen = sizeof(caddr);
+        int csock = accept(srv, (struct sockaddr *)&caddr, &clen);
+        if (csock < 0) {
+            if (!g_ejecutando) break;
+            continue;
+        }
+        pthread_t th;
+        if (pthread_create(&th, NULL, hilo_sesion_puente, (void *)(intptr_t)csock) == 0) {
+            pthread_detach(th);
+        } else {
+            close(csock);
+        }
+    }
+
+    return NULL;
+}
+
 // Arranca el punto E si se conoce la IP del repositorio; si no, solo el almacen vacio.
 // La IP viene del argumento 'ip_arg' (tiene prioridad, admite ip[:puerto]) o del JSON ("repositorio": {"ip": ...}).
 static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
@@ -210,8 +306,16 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
             }
             if (punto_e_iniciar(&cfg) == 0) {
                 g_punto_e_activo = 1;
+                snprintf(g_repo_ip, sizeof(g_repo_ip), "%s", ip);
+                g_repo_puerto = cfg.repo.puerto;
                 fprintf(stderr, "[ROA] Sincronizador del punto E activo (repositorio %s:%d, id %s).\n",
                         ip, cfg.repo.puerto, id);
+                if (strcmp(ip, "127.0.0.1") != 0 && strcmp(ip, "172.16.20.1") != 0) {
+                    pthread_t th_puente;
+                    if (pthread_create(&th_puente, NULL, hilo_puente_repo, NULL) == 0) {
+                        pthread_detach(th_puente);
+                    }
+                }
                 return;
             }
             fprintf(stderr, "[ROA] No se pudo iniciar el punto E. Se usa una tabla ROA vacia.\n");
@@ -221,6 +325,10 @@ static void iniciar_roas(const char *ruta_cfg, const char *ip_arg) {
 }
 
 static void detener_roas(void) {
+    if (g_socket_puente_repo >= 0) {
+        close(g_socket_puente_repo);
+        g_socket_puente_repo = -1;
+    }
     if (g_punto_e_activo) {
         punto_e_detener();
         g_punto_e_activo = 0;
@@ -440,6 +548,10 @@ static void manejador_senales(int sig) {
     if (g_socket_servidor >= 0) {
         close(g_socket_servidor);
         g_socket_servidor = -1;
+    }
+    if (g_socket_puente_repo >= 0) {
+        close(g_socket_puente_repo);
+        g_socket_puente_repo = -1;
     }
 }
 

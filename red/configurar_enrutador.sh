@@ -38,5 +38,12 @@ ip addr add 172.30.25.1/24 dev "${IFACE}.125"
 ip link set dev "${IFACE}.125" up
 echo "[OK] VLAN 125 - Transito Isla 5: 172.30.25.1/24"
 
+# 6. Subinterfaz VLAN 99 (Red global de gestion / Repositorio ROA inter-islas opcional)
+ip link add link "$IFACE" name "${IFACE}.99" type vlan id 99 2>/dev/null || true
+ip addr flush dev "${IFACE}.99" 2>/dev/null || true
+ip addr add 172.16.99.12/24 dev "${IFACE}.99"
+ip link set dev "${IFACE}.99" up
+echo "[OK] VLAN 99  - Red Global ROA:  172.16.99.12/24"
+
 ip link set dev "$IFACE" up
 echo "=== Enrutador configurado con exito ==="
