@@ -5,6 +5,19 @@
 #include <string.h>
 #include <time.h>
 
+static void logDiskGeometryForBlock(const char *accion, uint32_t blockIdx) {
+    uint32_t lbaStart = blockIdx * 4;
+    uint32_t lbaEnd = lbaStart + 3;
+    uint32_t sectorsPerPlatter = DISK_TRACKS_PER_PLATTER * DISK_SECTORS_PER_TRACK;
+    uint32_t platter = lbaStart / sectorsPerPlatter;
+    uint32_t track = (lbaStart / DISK_SECTORS_PER_TRACK) % DISK_TRACKS_PER_PLATTER;
+    uint32_t secStart = lbaStart % DISK_SECTORS_PER_TRACK;
+    uint32_t secEnd = lbaEnd % DISK_SECTORS_PER_TRACK;
+
+    printf("[FS-DISK] %s Bloque %u (512B) <-> Sectores fisicos LBA [%u..%u] (Plato %u, Pista %u, Sectores %u..%u)\n",
+           accion, blockIdx, lbaStart, lbaEnd, platter, track, secStart, secEnd);
+}
+
 static int setBitmapBit(uint32_t bitmapBlock, uint32_t index, uint8_t value) {
     if (index >= FS_BLOCK_SIZE) {
         return -1;
@@ -37,6 +50,10 @@ int storageInit(void) {
         if (fsFormat() != 0) {
             return -1;
         }
+    } else {
+        printf("[FS] Disco montado: Superbloque valido (version=%llu, inodos libres=%u/%d, bloques libres=%u/%d)\n",
+               (unsigned long long)superBlock->version, superBlock->freeInodes, FS_INODES, superBlock->freeBlocks, FS_TOTAL_BLOCKS);
+        fflush(stdout);
     }
 
     return STORAGE_OK;
@@ -87,7 +104,10 @@ int storageGet(const char *ip, char *roa, char *owner) {
     snprintf(owner, OWNER_MAX_SIZE, "%s", inode.owner);
     snprintf(roa, ROA_MAX_SIZE, "%s", (char *)blockBuffer);
 
-    printf("[FS] Consultado ROA: IP %s <- Inodo %u\n", ip, entry.inodeIndex);
+    logDiskGeometryForBlock("Lectura", inode.directBlocks[0]);
+    printf("[FS] Consultado ROA: IP %s <- Inodo %u (Bloque %u, Tamano %uB, Dueno %s)\n",
+           ip, entry.inodeIndex, inode.directBlocks[0], inode.fileSize, inode.owner);
+    fflush(stdout);
 
     return STORAGE_OK;
 }
@@ -211,7 +231,14 @@ int storagePut(const char *ip, const char *owner, const char *roa) {
         return STORAGE_NOT_FOUND;
     }
 
-    printf("[FS] Guardado ROA: IP %s -> Inodo %d, Bloque %d\n", ip, inodeIdx, blockIdx);
+    if (isNew) {
+        printf("[FS-BITMAP] Inodo %d reservado en Bitmap de Inodos (Bloque %d) | Bloque %d reservado en Bitmap de Datos (Bloque %d)\n",
+               inodeIdx, FS_INODE_BITMAP_BLOCK, blockIdx, FS_DATA_BITMAP_BLOCK);
+    }
+    logDiskGeometryForBlock("Escritura", (uint32_t)blockIdx);
+    printf("[FS] Guardado ROA: IP %s -> Inodo %d, Bloque %d | Superbloque: version=%llu, inodos libres=%u, bloques libres=%u\n",
+           ip, inodeIdx, blockIdx, (unsigned long long)sb->version, sb->freeInodes, sb->freeBlocks);
+    fflush(stdout);
     return STORAGE_OK;
 }
 
@@ -266,7 +293,12 @@ int storageDelete(const char *ip) {
         return STORAGE_NOT_FOUND;
     }
 
-    printf("[FS] Eliminado ROA: IP %s (Inodo %u liberado)\n", ip, entry.inodeIndex);
+    logDiskGeometryForBlock("Liberacion", blockIndex);
+    printf("[FS-BITMAP] Inodo %u y Bloque %u liberados en Bitmaps | Entrada '%s' removida de Directorio Raiz (Bloque %d)\n",
+           entry.inodeIndex, blockIndex, ip, FS_DATA_BLOCKS_START);
+    printf("[FS] Eliminado ROA: IP %s (Inodo %u liberado) | Superbloque: version=%llu, inodos libres=%u, bloques libres=%u\n",
+           ip, entry.inodeIndex, (unsigned long long)sb->version, sb->freeInodes, sb->freeBlocks);
+    fflush(stdout);
     return STORAGE_OK;
 } 
 
@@ -304,6 +336,7 @@ size_t storageList(char roas[][ROA_MAX_SIZE], size_t maxRoas) {
         }
     }
 
-    printf("[FS] Listados %zu ROAs en el sistema\n", count);
+    printf("[FS] Listados %zu ROAs desde Directorio Raiz (Bloque %d)\n", count, FS_DATA_BLOCKS_START);
+    fflush(stdout);
     return count;
 }

@@ -113,7 +113,11 @@ int fsFormat(void) {
         return -1;
     }
 
-    printf("[FS] Formateo completado: 32 KB inicializados, Superbloque en bloque 0, %d inodos disponibles.\n", FS_INODES);
+    printf("[FS-DISK] Geometria inicializada: P=%d platos, T=%d pistas/plato, S=%d sectores/pista, B=%d bytes/sector (Total: %d KB, %d sectores LBA)\n",
+           DISK_PLATTERS, DISK_TRACKS_PER_PLATTER, DISK_SECTORS_PER_TRACK, DISK_SECTOR_SIZE, DISK_SIZE_BYTES / 1024, DISK_TOTAL_SECTORS);
+    printf("[FS] Formateo completado: 32 KB inicializados, Superbloque en bloque 0, %d inodos disponibles, %u bloques libres.\n",
+           FS_INODES, superBlock.freeBlocks);
+    fflush(stdout);
     return 0;
 }
 

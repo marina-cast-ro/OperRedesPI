@@ -36,6 +36,12 @@ static int  g_puerto_local = PUERTO_TCP_DEFECTO;  // Puerto de la compu local re
 static int  g_intervalo_anuncio = INTERVALO_ANUNCIO;
 static int  g_tolerancia_silencio = TOLERANCIA_SILENCIO;
 
+// Contadores acumulativos de paquetes DATA para resumen al finalizar
+static unsigned int g_data_recibidos = 0;
+static unsigned int g_data_reenviados = 0;
+static unsigned int g_data_entregados = 0;
+static unsigned int g_data_descartados = 0;
+
 // Lectura de la compu receptora local y temporizadores desde el archivo de configuración JSON
 // El guardado de los datos del receptor se realiza en las 2 variables estáticas de arriba
 static void cargar_destino_local(const char *ruta_cfg) {
@@ -354,9 +360,11 @@ static void *hilo_conexion(void *arg) {
             char accion[32], nuevo_msg[2048];
             int siguiente_salto = 0;
 
+            __sync_fetch_and_add(&g_data_recibidos, 1);
             tabla_procesar_data(&g_tabla, msg, accion, &siguiente_salto, nuevo_msg, sizeof(nuevo_msg));
 
             if (strcmp(accion, "ENTREGAR") == 0) {
+                __sync_fetch_and_add(&g_data_entregados, 1);
                 printf("[DATA RECIBIDO] %s\n", nuevo_msg);
                 fflush(stdout);
                 // PASO 1: Guardar en output.txt del router (como pide el enunciado)
@@ -381,12 +389,14 @@ static void *hilo_conexion(void *arg) {
                     }
                 }
             } else if (strcmp(accion, "REENVIAR") == 0) {
+                __sync_fetch_and_add(&g_data_reenviados, 1);
                 strcat(nuevo_msg, "\n");
                 int puerto_salto = (g_tabla.vecinos[siguiente_salto].puerto > 0)
                                        ? g_tabla.vecinos[siguiente_salto].puerto
                                        : g_tabla.puerto_tcp;
                 enviar_tcp(g_tabla.ips[siguiente_salto], puerto_salto, nuevo_msg);
             } else {
+                __sync_fetch_and_add(&g_data_descartados, 1);
                 char hora[16];
                 time_t ahora = time(NULL);
                 struct tm tm_info;
@@ -498,6 +508,9 @@ static void ejecutar_en_red(const char *ruta_cfg, const char *ip_repositorio) {
     // Punto 4: estadisticas de la MMU al terminar. Va antes del join porque el hilo del
     // temporizador puede tardar hasta INTERVALO_ANUNCIO s en despertar del sleep.
     tabla_imprimir_estadisticas_mmu(&g_tabla);
+    printf("[TRAFICO isla %d] DATA recibidos=%u | reenviados=%u | entregados localmente=%u | descartados=%u\n",
+           g_tabla.mi_id, g_data_recibidos, g_data_reenviados, g_data_entregados, g_data_descartados);
+    fflush(stdout);
 
     pthread_join(th_timer, NULL);
     detener_roas();
