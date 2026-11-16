@@ -1,5 +1,6 @@
 # Las llaves privadas NUNCA van al repositorio, ni la de la CA ni las de los nodos
 *.key
+!nodo.key
 *.csr
 *.srl
 build/
