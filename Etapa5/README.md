@@ -16,11 +16,11 @@ Para cada aspecto se conserva tanto el código original generado por el modelo d
 ```text
 Etapa5/
 ├── fsDisk/
-│   ├── prototipo_ia/        # Prototipo generado por IA (fsDisk_ia.c)
-│   └── corregido/           # Versión depurada y correcciones (fsDisk_corregido.c)
+│   ├── prototipo_ia/        # Prototipo generado por IA (fsDisk_ia.c) y registro.md
+│   └── corregido/           # Versión depurada (fsDisk_corregido.c) y registro.md
 ├── kernelStopAndWait/
-│   ├── prototipo_ia/        # Prototipo generado por IA (kernel_ia.c)
-│   └── corregido/           # Versión depurada y correcciones (kernel_corregido.c)
+│   ├── prototipo_ia/        # Prototipo generado por IA (kernel_ia.c) y registro.md
+│   └── corregido/           # Versión depurada (kernel_corregido.c) y registro.md
 ├── presentacion/            # Presentación final del equipo
 └── README.md
 ```

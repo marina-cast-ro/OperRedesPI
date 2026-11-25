@@ -43,7 +43,7 @@ documentación, diseño e implementación de cada etapa.
 | 2     | Construcción de las tablas de enrutamiento | Completada  |
 | 3     | Diseño de RPKI                             | Completada  |
 | 4     | Implementación de RPKI                     | Completada  |
-| 5     | -                                          | -           |
+| 5     | Retrospectiva con IA                       | En progreso |
 
 ## Instrucciones de Uso
 
