@@ -90,7 +90,7 @@ static int setup_kernel_udp_socket(void)
     //tv.tv_sec  = 0;
     //tv.tv_usec = ACK_TIMEOUT_MS * 1000;
 
-    // =============== ERROR 2 DE IA: Fuga de socket =========================
+    // =============== ERROR 2 DE IA: Time out de recepción del socket =========================
     // BLOQUE VIEJO: No compilan estas instrucciones en kernels modernos
     /*oldfs = get_fs();
     set_fs(KERNEL_DS);
@@ -103,7 +103,7 @@ static int setup_kernel_udp_socket(void)
     g_ksock->sk->sk_rcvtimeo = msecs_to_jiffies(ACK_TIMEOUT_MS);
     release_sock(g_ksock->sk);
     return 0;
-    // =============== ERROR 2 DE IA: Fuga de socket =========================
+    // =============== ERROR 2 DE IA: Time out de recepción del socket =========================
 }
 
 /* Syscall 1: Inicializa el estado del protocolo y el bit de secuencia */
