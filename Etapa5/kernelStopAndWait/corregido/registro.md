@@ -2,7 +2,7 @@
 
 ## Datos generales
 
-- **Fecha:** _DD-MM-YYYY_
+- **Fecha:** 27-11-2026
 - **Archivo base:** `../prototipo_ia/kernel_ia.c`
 - **Archivo corregido:** `kernel_corregido.c`
 
@@ -17,11 +17,11 @@
 
 ## Errores encontrados y corregidos
 
-| #   | Ubicación / Función | Error cometido por la IA | Corrección aplicada |
-| --- | ------------------- | ------------------------ | ------------------- |
-| 1   |                     |                          |                     |
-| 2   |                     |                          |                     |
-| 3   |                     |                          |                     |
+| #   |    Ubicación / Función    | Error cometido por la IA | Corrección aplicada |
+| --- | ------------------------- | ------------------------ | ------------------- |
+| 1   | `setup_kernel_udp_socket()` | En el caso de que `kernel_bind()` falle (devuelve un valor negativo), el código de la IA nunca hace `sock_release()`, dejando memoria ocupada pero inútil en el espacio del Kernel que no se puede liberar hasta un reinicio forzoso del sistema.                       | Agregar `sock_release(g_ksock)` y `g_ksock = NULL` en esta sección de la función.                    |
+| 2   |                           |                          |                     |
+| 3   |                           |                          |                     |
 
 ## Comparativa vs. implementación manual (Punto 3.a)
 
